@@ -337,11 +337,13 @@ class SimuladorESP32 implements DataSource {
 
   double _mlDe(int ms) => _caudalMlS * math.max(0.0, ms - _t0Ms) / 1000;
 
-  /// Pulso proporcional a la distancia, apunta al 60 % de lo necesario.
+  /// Pulso proporcional a la distancia: 40 % de lo que falta, 25 % cerca del
+  /// umbral (< 0.3 pH), igual que el firmware.
   int _msPulso() {
     final dist = math.max(0.0, _ph - _umbral);
     final mlNecesarios = dist / _sHatReal;
-    final ms = _t0Ms + mlNecesarios / _caudalMlS * 1000 * 0.6;
+    final g = dist < 0.30 ? 0.25 : 0.40;
+    final ms = _t0Ms + mlNecesarios / _caudalMlS * 1000 * g;
     return ms.clamp(40, 150).round();
   }
 

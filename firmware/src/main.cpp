@@ -92,8 +92,14 @@ float          t0_ms        = 0.0f;
 const uint32_t PULSO_MIN_MS = 50;
 
 float tolerancia    = TOLERANCIA_FIN; // 0.03 pH (contrato)
-float gammaCtl      = 0.60f;
-float volMaxPaso    = 10.0f;
+// Control conservador (sin calibración fina de la bomba se pasaba del umbral):
+//  - gammaCtl: fracción de lo que falta que se intenta bajar en cada pulso
+//  - cerca del umbral (< ZONA_APROX pH) se usa gammaCerca, aún más suave
+//  - volMaxPaso: tope de mL por pulso
+float gammaCtl      = 0.40f;   // antes 0.60
+float gammaCerca    = 0.25f;
+const float ZONA_APROX = 0.30f;
+float volMaxPaso    = 3.0f;    // antes 10.0
 float volMaxSesion  = 95.0f;
 float volTitulacion = 1.0f;
 
@@ -811,7 +817,8 @@ void evaluar(bool porTimeout) {
       finalizarSesion("Objetivo alcanzado dentro de tolerancia mínima");
       return;
     }
-    vSig = constrain(gammaCtl * err / sEst, vMin, volMaxPaso);
+    float g = (err < ZONA_APROX) ? gammaCerca : gammaCtl;
+    vSig = constrain(g * err / sEst, vMin, volMaxPaso);
   }
 
   if (st.ml_dosificados + vSig > volMaxSesion) {

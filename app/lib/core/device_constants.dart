@@ -78,6 +78,6 @@ class DeviceConst {
   // ---------------- Simulador ----------------
   static const int retardoRedMinMs = 150;
   static const int retardoRedMaxMs = 400;
-  static const int mezclaMs = 3000;
+  static const int mezclaMs = 12000; // igual que el firmware (antes 3000)
   static const double tolerancia = 0.03; // llega al umbral si pH ≤ umbral + esto
 }

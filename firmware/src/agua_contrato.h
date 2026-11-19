@@ -186,7 +186,7 @@ constexpr float    TOLERANCIA_FIN      = 0.03f;   // FIN cuando pH <= umbral + e
 constexpr uint16_t PULSO_MAX_MS        = 1500;
 constexpr float    ML_POR_SEGUNDO      = 33.0f;   // caudal de la bomba
 constexpr float    ACIDO_INICIAL_ML    = 100.0f;
-constexpr uint16_t MEZCLA_MS           = 3000;
+constexpr uint16_t MEZCLA_MS           = 12000;   // espera mínima tras cada pulso (antes 3000: se pasaba)
 
 // Frecuencia de publicación sugerida
 constexpr uint16_t PERIODO_TELEMETRIA_MS = 1000;  // ph + telemetria

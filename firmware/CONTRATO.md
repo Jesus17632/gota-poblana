@@ -73,7 +73,7 @@ Si pasan más de 10 s sin lecturas, la app muestra "Sin datos recientes".
 | `TEMA_UMBRAL` "x.xx" | fuera de 4.5–7.0 | `RECHAZO` "Umbral fuera de rango (4.5–7.0)" con `"cmd":"umbral x.xx"` |
 | | válido | actualiza `umbral` (sin evento) |
 
-**Ciclo de dosificación:** `RELE_ON` → pulso → `RELE_OFF` → estado `MEZCLA` (~3 s) → nueva lectura → repite.
+**Ciclo de dosificación:** `RELE_ON` → pulso → `RELE_OFF` → estado `MEZCLA` (≥ 12 s y lectura estable) → nueva lectura → repite.
 Cuando pH ≤ umbral + 0.03, publica **primero la telemetría con `resumen`** y después el evento `FIN`.
 El ácido se descuenta a ~33 mL por segundo de bomba. Si se acaba a mitad de la sesión: `RECHAZO` "Ácido insuficiente" y vuelve a `IDLE`.
 Si falla la sonda: relé apagado, estado `ERROR`, `sensor: "SIN_RESPUESTA"` y evento `ERROR`.

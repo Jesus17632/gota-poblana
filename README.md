@@ -80,7 +80,7 @@ orden responde. Si falta, la app asocia el evento con la orden pendiente más an
 |---|---|
 | `dosificar` con pH ≤ umbral + 0.05 | `RECHAZO` "El pH ya está por debajo del objetivo" |
 | `dosificar` sin ácido para un pulso | `RECHAZO` "Ácido insuficiente" |
-| `dosificar` válido | `INICIO` → ciclos `RELE_ON` → pulso → `RELE_OFF` → estado `MEZCLA` (~3 s) → … → `FIN` con `resumen` en la telemetría |
+| `dosificar` válido | `INICIO` → ciclos `RELE_ON` → pulso → `RELE_OFF` → estado `MEZCLA` (≥ 12 s y lectura estable) → … → `FIN` con `resumen` en la telemetría |
 | `detener` (en cualquier momento) | `RELE_OFF` inmediato, estado `IDLE`, limpia el error, `ACK` |
 | `p <ms>` con ms > 1500 | `RECHAZO` "Pulso mayor al máximo permitido (1500 ms)" |
 | `p <ms>` válido | `RELE_ON` y `RELE_OFF` tras `<ms>` |
