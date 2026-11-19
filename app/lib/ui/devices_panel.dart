@@ -27,9 +27,12 @@ class DevicesPanel extends StatelessWidget {
     final sensor = hw?.sensor ?? s.ultimo?.sensor;
     // Primera falla de un módulo (críticas primero), para su tarjeta.
     FallaHw? fallaDe(String m) {
-      final l = s.fallas.where((f) => f.modulo == m).toList();
+      final l = s.fallasTodas.where((f) => f.modulo == m).toList();
       return l.isEmpty ? null : l.first;
     }
+
+    final tempDesactivada = s.ultimo?.tempC == null ||
+        (hw?.tieneFalla(Fallas.sensorTempDesconectado) ?? false);
 
     _Modulo conFalla(_Modulo base, String modulo) {
       final f = fallaDe(modulo);
@@ -121,14 +124,15 @@ class DevicesPanel extends StatelessWidget {
                   : Palette.error,
               icon: Icons.sensors,
             ), 'PH'),
-            conFalla(_Modulo(
+            // Desconectado → solo "Desactivado" (sin repetir el nombre del sensor).
+            _Modulo(
               nombre: 'Sensor de temperatura',
-              valor: s.ultimo?.tempC == null
-                  ? 'Sin dato'
+              valor: tempDesactivada
+                  ? 'Desactivado'
                   : '${s.ultimo!.tempC!.toStringAsFixed(1)} °C',
-              color: s.ultimo?.tempC == null ? Palette.sinDatos : Palette.normal,
+              color: tempDesactivada ? Palette.sinDatos : Palette.normal,
               icon: Icons.thermostat,
-            ), 'TEMP'),
+            ),
           ];
           return Wrap(spacing: gap, runSpacing: gap, children: [
             for (final t in tarjetas) SizedBox(width: w, height: 92, child: t),
@@ -207,7 +211,7 @@ class DevicesPanel extends StatelessWidget {
             BotonAccion(
               icon: Icons.healing_outlined,
               label: 'Quitar fallas',
-              onPressed: s.fallas.isEmpty ? null : s.limpiarFallasSimuladas,
+              onPressed: s.fallasTodas.isEmpty ? null : s.limpiarFallasSimuladas,
             ),
           ]),
           const SizedBox(height: 4),

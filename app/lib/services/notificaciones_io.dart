@@ -53,6 +53,7 @@ class _NotifPlugin extends Notificaciones {
     required int id,
     required String titulo,
     required String cuerpo,
+    String? resumen,
     bool critica = false,
   }) async {
     if (!_listo) return;
@@ -63,17 +64,30 @@ class _NotifPlugin extends Notificaciones {
         body: cuerpo,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
-            critica ? 'agua_alertas' : 'agua_avisos',
+            // Canales v2: Android guarda la importancia al crear el canal,
+            // así que cambiar el ID aplica la nueva configuración.
+            critica ? 'agua_alertas_v2' : 'agua_avisos_v2',
             critica ? 'Alertas del equipo' : 'Avisos de dosificación',
             channelDescription: critica
                 ? 'Fallas, errores y agua fuera de norma'
                 : 'Inicio y fin de la dosificación',
-            importance: critica ? Importance.max : Importance.high,
-            priority: Priority.high,
+            importance: Importance.max, // aparece como banner (heads-up)
+            priority: Priority.max,
+            visibility: NotificationVisibility.public,
             color: critica ? const Color(0xFFE5484D) : const Color(0xFF218DAE),
             category: critica
                 ? AndroidNotificationCategory.alarm
                 : AndroidNotificationCategory.status,
+            ticker: titulo,
+            subText: resumen,
+            enableVibration: true,
+            playSound: true,
+            styleInformation: BigTextStyleInformation(
+              cuerpo,
+              contentTitle: '<b>$titulo</b>',
+              htmlFormatContentTitle: true,
+              summaryText: resumen,
+            ),
           ),
           linux: const LinuxNotificationDetails(),
         ),
@@ -90,15 +104,17 @@ class _NotifPlugin extends Notificaciones {
       if (activo) {
         await _android?.startForegroundService(
           id: 1,
-          title: 'Monitoreando el agua',
+          title: '💧 Monitoreando el agua',
           body: texto ?? 'La app sigue conectada al equipo',
           notificationDetails: const AndroidNotificationDetails(
             'agua_monitoreo',
             'Monitoreo en segundo plano',
             channelDescription: 'Mantiene la conexión con el equipo',
-            importance: Importance.low,
+            importance: Importance.low, // fija y discreta, sin sonido
             priority: Priority.low,
             ongoing: true,
+            color: Color(0xFF218DAE),
+            showWhen: false,
           ),
           foregroundServiceTypes: {AndroidServiceForegroundType.foregroundServiceTypeDataSync},
         );

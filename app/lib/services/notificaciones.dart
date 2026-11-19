@@ -21,6 +21,7 @@ class Notificaciones {
     required int id,
     required String titulo,
     required String cuerpo,
+    String? resumen, // línea pequeña: lugar · nodo
     bool critica = false,
   }) async {}
 

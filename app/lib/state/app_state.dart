@@ -127,7 +127,7 @@ class AppState extends ChangeNotifier {
     await _notif.iniciar();
     if (settings.notifSistema) await _notif.pedirPermiso();
     if (settings.monitoreoFondo) {
-      await _notif.monitoreo(true, texto: 'Conectado a ${settings.nodo}');
+      await _notif.monitoreo(true, texto: 'Vigilando el pH de ${settings.nodo} en segundo plano');
     }
     _uiTimer = Timer.periodic(_uiTick, (_) => _notificar());
     _saveTimer =
@@ -254,6 +254,9 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Fallas que NO generan alertas: solo se ven en Ajustes → Dispositivos.
+  static const fallasDeAjustes = {Fallas.sensorTempDesconectado, Fallas.calibracionPendiente};
+
   void _onHardware(HardwareEstado h) {
     final antes = {for (final f in hw?.fallas ?? const <FallaHw>[]) f.codigo};
     hw = h;
@@ -261,7 +264,8 @@ class AppState extends ChangeNotifier {
     if (h.rele != null) rele = h.rele!;
 
     final ahora = {for (final f in h.fallas) f.codigo};
-    for (final f in h.fallas.where((f) => !antes.contains(f.codigo))) {
+    for (final f in h.fallas.where(
+        (f) => !antes.contains(f.codigo) && !fallasDeAjustes.contains(f.codigo))) {
       final txt = f.info.titulo + (f.detalle == null ? '' : ' (${f.detalle})');
       _log('FALLA', '$txt [${f.codigo}]');
       if (f.critica) {
@@ -271,13 +275,17 @@ class AppState extends ChangeNotifier {
         _avisar(TipoAviso.advertencia, txt);
       }
     }
-    for (final c in antes.difference(ahora)) {
+    for (final c in antes.difference(ahora).where((c) => !fallasDeAjustes.contains(c))) {
       _log('FALLA RESUELTA', '${Fallas.info(c).titulo} [$c]');
     }
   }
 
-  /// Fallas de hardware activas, críticas primero.
-  List<FallaHw> get fallas {
+  /// Fallas que generan alertas (sin las de [fallasDeAjustes]), críticas primero.
+  List<FallaHw> get fallas =>
+      fallasTodas.where((f) => !fallasDeAjustes.contains(f.codigo)).toList();
+
+  /// Todas, incluidas las de configuración (para Ajustes → Dispositivos).
+  List<FallaHw> get fallasTodas {
     final l = [...?hw?.fallas];
     l.sort((a, b) => (a.critica ? 0 : 1).compareTo(b.critica ? 0 : 1));
     return l;
@@ -380,12 +388,12 @@ class AppState extends ChangeNotifier {
   }
 
   static const _titulos = {
-    TipoAviso.inicio: 'Dosificación iniciada',
-    TipoAviso.fin: 'Dosificación terminada',
-    TipoAviso.error: 'Falla en el equipo',
-    TipoAviso.fueraNorma: 'Agua fuera de norma',
-    TipoAviso.rechazo: 'Orden rechazada',
-    TipoAviso.advertencia: 'Aviso del equipo',
+    TipoAviso.inicio: '💧 Dosificación iniciada',
+    TipoAviso.fin: '✅ Objetivo alcanzado',
+    TipoAviso.error: '⚠️ Falla en el equipo',
+    TipoAviso.fueraNorma: '🔴 Agua fuera de norma',
+    TipoAviso.rechazo: '🚫 Orden rechazada',
+    TipoAviso.advertencia: '🟡 Aviso del equipo',
     TipoAviso.info: 'Cloración Agua',
   };
 
@@ -398,8 +406,9 @@ class AppState extends ChangeNotifier {
         tipo == TipoAviso.rechazo;
     _notif.mostrar(
       id: _idNotif++,
-      titulo: '${_titulos[tipo]} · $nodo',
+      titulo: _titulos[tipo]!,
       cuerpo: msg,
+      resumen: '$ubicacion · $nodo',
       critica: critica,
     );
   }
@@ -429,7 +438,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> cambiarMonitoreo(bool v) async {
     settings.monitoreoFondo = v;
-    await _notif.monitoreo(v, texto: 'Conectado a ${settings.nodo}');
+    await _notif.monitoreo(v, texto: 'Vigilando el pH de ${settings.nodo} en segundo plano');
     await guardarSettings();
   }
 
@@ -510,8 +519,10 @@ class AppState extends ChangeNotifier {
     if (settings.notifSistema) {
       await _notif.mostrar(
         id: _idNotif++,
-        titulo: 'Prueba de notificación · $nodo',
-        cuerpo: 'Así llegarán las alertas con la app en segundo plano.',
+        titulo: '🔔 Prueba de notificación',
+        cuerpo: 'Así llegarán las alertas con la app en segundo plano: '
+            'fallas, agua fuera de norma, inicio y fin de la dosificación.',
+        resumen: '$ubicacion · $nodo',
         critica: true,
       );
     }

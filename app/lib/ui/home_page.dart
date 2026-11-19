@@ -255,14 +255,6 @@ class _PanelControlador extends StatelessWidget {
             text: 'Queda poco ácido (< 20 mL). Rellena el depósito.',
           ),
         ],
-        if (s.temperatura.supuesta) ...[
-          const SizedBox(height: Esp.s),
-          AvisoLinea(
-            color: Palette.precaucion,
-            icon: Icons.thermostat,
-            text: 'Temperatura supuesta: ${s.temperatura.tempC.toStringAsFixed(1)} °C',
-          ),
-        ],
       ]),
     );
   }

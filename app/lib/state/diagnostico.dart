@@ -120,13 +120,12 @@ class Diagnostico extends ChangeNotifier {
       }),
       ('temp', 'Sensor de temperatura', () async {
         if (!s.hayDatos) return (ResultadoPaso.omitido, 'Sin datos');
-        final f = _fallaModulo(s, 'TEMP');
         final t = s.ultimo!.tempC;
-        if (f != null || t == null) {
-          return (
-            ResultadoPaso.aviso,
-            'Sin sensor: se usa ${s.settings.tempAguaC.toStringAsFixed(1)} °C capturada'
-          );
+        final desactivado =
+            t == null || (s.hw?.tieneFalla(Fallas.sensorTempDesconectado) ?? false);
+        if (desactivado) {
+          // Sin alerta: el estado se consulta en Ajustes → Dispositivos.
+          return (ResultadoPaso.omitido, 'Desactivado');
         }
         return (ResultadoPaso.ok, '${t.toStringAsFixed(1)} °C');
       }),
@@ -149,7 +148,8 @@ class Diagnostico extends ChangeNotifier {
         if ((s.hw?.tieneFalla(Fallas.calibracionPendiente) ?? false) ||
             c?.fecha == null ||
             c!.fecha!.isEmpty) {
-          return (ResultadoPaso.aviso, 'Sin calibración registrada');
+          // Sin alerta: se consulta en Ajustes → Dispositivos.
+          return (ResultadoPaso.omitido, 'Pendiente · ver Ajustes → Dispositivos');
         }
         return (
           ResultadoPaso.ok,
