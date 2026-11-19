@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../core/palette.dart';
 import '../app_scope.dart';
+import '../tokens.dart';
 
 /// "Bomba encendida/apagada" con punto animado (sin animación si el
 /// movimiento reducido está activo). Refleja SOLO lo que reporta el equipo.
@@ -75,10 +76,13 @@ class _BombaIndicadorState extends State<BombaIndicador>
         Icon(widget.encendida ? Icons.power : Icons.power_off,
             size: 18, color: color),
         const SizedBox(width: 4),
-        Text(
+        Flexible(
+          child: Text(
           widget.encendida ? 'Bomba encendida' : 'Bomba apagada',
-          style: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w700, color: Palette.texto),
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: context.ag.texto),
+          ),
         ),
       ]),
     );

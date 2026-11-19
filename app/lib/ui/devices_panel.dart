@@ -9,6 +9,7 @@ import '../data/data_source.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import 'app_scope.dart';
+import 'tokens.dart';
 import 'widgets/bomba_indicador.dart';
 import 'widgets/common.dart';
 
@@ -18,6 +19,7 @@ class DevicesPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = AppScope.of(context);
+    final ag = context.ag;
     final hw = s.hw;
     final mods = hw?.modulos;
     bool? detectado(String m) => mods == null ? null : (mods[m] ?? false);
@@ -54,7 +56,7 @@ class DevicesPanel extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
-                      color: Palette.texto)),
+                      color: Palette.tinta)),
             )
           : null,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -135,9 +137,9 @@ class DevicesPanel extends StatelessWidget {
         const SizedBox(height: 16),
         BombaIndicador(encendida: s.rele),
         const SizedBox(height: 16),
-        const Text('Pruebas',
+        Text('PRUEBAS',
             style: TextStyle(
-                fontWeight: FontWeight.w700, color: Palette.textoSecundario)),
+                fontSize: 12, letterSpacing: 0.6, fontWeight: FontWeight.w700, color: ag.texto2)),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
           _BotonOrden(
@@ -162,13 +164,12 @@ class DevicesPanel extends StatelessWidget {
         ]),
         if (s.simulado) ...[
           const SizedBox(height: 20),
-          const Text('Desarrollo (solo simulador)',
+          Text('DESARROLLO · SOLO SIMULADOR',
               style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: Palette.textoSecundario)),
+                  fontSize: 12, letterSpacing: 0.6, fontWeight: FontWeight.w700, color: ag.texto2)),
           const SizedBox(height: 8),
           Row(children: [
-            const Icon(Icons.thermostat, color: Palette.textoSecundario),
+            Icon(Icons.thermostat, color: ag.texto2),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -211,8 +212,8 @@ class DevicesPanel extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 4),
-          const Text('"Detener" también restablece el hardware simulado.',
-              style: TextStyle(fontSize: 12, color: Palette.textoSecundario)),
+          Text('"Detener" también restablece el hardware simulado.',
+              style: TextStyle(fontSize: 12, color: ag.texto2)),
         ],
       ]),
     );
@@ -265,7 +266,7 @@ class DevicesPanel extends StatelessWidget {
                   size: 20,
                   color: e.value.severidad == Severidad.critica
                       ? Palette.error
-                      : Palette.textoSecundario,
+                      : ctx.ag.texto2,
                 ),
                 const SizedBox(width: 12),
                 Expanded(child: Text(e.value.titulo)),
@@ -301,7 +302,7 @@ class DevicesPanel extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Color.fromARGB(255, c.$2, c.$3, c.$4),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Palette.pista),
+                    border: Border.all(color: ctx.ag.linea),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -333,24 +334,25 @@ class _Modulo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ag = context.ag;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Palette.fondo,
+        color: ag.superficie2,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(icon, size: 18, color: Palette.textoSecundario),
+          Icon(icon, size: 18, color: ag.texto2),
           const SizedBox(width: 6),
           Expanded(
             child: Text(nombre,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Palette.textoSecundario)),
+                    color: ag.texto2)),
           ),
           if (muestra != null)
             Container(
@@ -359,7 +361,7 @@ class _Modulo extends StatelessWidget {
               decoration: BoxDecoration(
                 color: muestra,
                 shape: BoxShape.circle,
-                border: Border.all(color: Palette.pista),
+                border: Border.all(color: ag.linea),
               ),
             ),
         ]),

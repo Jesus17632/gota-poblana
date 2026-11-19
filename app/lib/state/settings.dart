@@ -6,6 +6,8 @@ enum FuenteDatos { simulador, mqtt }
 
 enum ModoUmbral { ph, eficacia }
 
+enum ModoTema { sistema, claro, oscuro }
+
 /// Preferencias persistentes (SharedPreferences).
 class Settings {
   FuenteDatos fuente =
@@ -20,7 +22,9 @@ class Settings {
   bool usarSensorTemp = false;
   double metaHoclPct = 90.0;
   ModoUmbral modoUmbral = ModoUmbral.ph;
-  String pin = '1234';
+  ModoTema tema = ModoTema.sistema;
+  bool onboardingVisto = false;
+  bool tecnico = false; // rol elegido en el onboarding o en Ajustes
 
   bool movimientoReducido = false;
   bool sonidos = true;
@@ -60,7 +64,10 @@ class Settings {
     metaHoclPct = prefs.getDouble('${_p}metaHoclPct') ?? metaHoclPct;
     modoUmbral = ModoUmbral.values
         .byName(prefs.getString('${_p}modoUmbral') ?? ModoUmbral.ph.name);
-    pin = prefs.getString('${_p}pin') ?? pin;
+    tema = ModoTema.values
+        .byName(prefs.getString('${_p}tema') ?? ModoTema.sistema.name);
+    onboardingVisto = prefs.getBool('${_p}onboardingVisto') ?? onboardingVisto;
+    tecnico = prefs.getBool('${_p}tecnico') ?? tecnico;
     movimientoReducido =
         prefs.getBool('${_p}movimientoReducido') ?? movimientoReducido;
     notifAlertas = prefs.getBool('${_p}notifAlertas') ?? notifAlertas;
@@ -83,7 +90,9 @@ class Settings {
     await prefs.setBool('${_p}usarSensorTemp', usarSensorTemp);
     await prefs.setDouble('${_p}metaHoclPct', metaHoclPct);
     await prefs.setString('${_p}modoUmbral', modoUmbral.name);
-    await prefs.setString('${_p}pin', pin);
+    await prefs.setString('${_p}tema', tema.name);
+    await prefs.setBool('${_p}onboardingVisto', onboardingVisto);
+    await prefs.setBool('${_p}tecnico', tecnico);
     await prefs.setBool('${_p}movimientoReducido', movimientoReducido);
     await prefs.setBool('${_p}notifAlertas', notifAlertas);
     await prefs.setBool('${_p}notifInicio', notifInicio);

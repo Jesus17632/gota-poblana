@@ -9,7 +9,30 @@ import 'data_page.dart';
 import 'format.dart';
 import 'home_page.dart';
 import 'settings_page.dart';
+import 'tokens.dart';
 import 'widgets/common.dart';
+
+/// Disposición de la pantalla según tamaño y orientación.
+class Disposicion {
+  const Disposicion(this.ancho, this.alto);
+  final double ancho;
+  final double alto;
+  bool get horizontal => ancho > alto;
+
+  /// Navegación lateral: tablet/escritorio o teléfono acostado.
+  bool get lateral => ancho >= 900 || (horizontal && ancho >= 560);
+
+  /// Dos columnas de contenido.
+  bool get dosColumnas => ancho >= 760 || (horizontal && ancho >= 560);
+
+  /// Teléfono acostado: poca altura, todo más compacto.
+  bool get compacto => horizontal && alto < 500;
+
+  static Disposicion of(BuildContext context) {
+    final s = MediaQuery.sizeOf(context);
+    return Disposicion(s.width, s.height);
+  }
+}
 
 class Shell extends StatefulWidget {
   const Shell({super.key});
@@ -24,9 +47,9 @@ class _ShellState extends State<Shell> {
   AppState? _state;
 
   static const _items = [
-    (Icons.home_outlined, Icons.home_rounded, 'Inicio'),
-    (Icons.bar_chart_outlined, Icons.bar_chart_rounded, 'Datos'),
-    (Icons.tune_outlined, Icons.tune_rounded, 'Ajustes'),
+    (Icons.water_drop_outlined, Icons.water_drop, 'Inicio'),
+    (Icons.insights_outlined, Icons.insights, 'Datos'),
+    (Icons.tune_outlined, Icons.tune, 'Ajustes'),
   ];
 
   @override
@@ -46,8 +69,7 @@ class _ShellState extends State<Shell> {
     super.dispose();
   }
 
-  /// Avisos visuales distintos para inicio / fin / error (duplican los
-  /// pitidos del equipo).
+  /// Avisos visuales distintos por tipo (duplican los pitidos del equipo).
   void _mostrarAviso(Aviso a) {
     if (!mounted) return;
     final (Color color, IconData icon) = switch (a.tipo) {
@@ -57,50 +79,54 @@ class _ShellState extends State<Shell> {
       TipoAviso.fueraNorma => (Palette.error, Icons.warning_rounded),
       TipoAviso.rechazo => (Palette.error, Icons.block),
       TipoAviso.advertencia => (Palette.precaucion, Icons.warning_amber_rounded),
-      TipoAviso.info => (Palette.texto, Icons.info),
+      TipoAviso.info => (const Color(0xFF2B3237), Icons.info),
     };
+    final fg = Palette.textoSobre(color);
     final m = ScaffoldMessenger.of(context);
     m.hideCurrentSnackBar();
     m.showSnackBar(SnackBar(
       backgroundColor: color,
+      elevation: 0,
       duration: Duration(seconds: a.tipo == TipoAviso.rechazo ? 6 : 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       content: Row(children: [
-        Icon(icon, color: Palette.textoSobre(color)),
-        const SizedBox(width: 12),
+        Icon(icon, color: fg),
+        const SizedBox(width: Esp.m),
         Expanded(
           child: Text(a.mensaje,
-              style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: Palette.textoSobre(color))),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: fg)),
         ),
       ]),
     ));
   }
 
+  void _ir(int i) => setState(() => _tab = i);
+
   @override
   Widget build(BuildContext context) {
     final s = AppScope.of(context);
+    final d = Disposicion.of(context);
     final ahora = s.ahora;
     final titulos = [saludo(ahora), 'Datos', 'Ajustes'];
-    final pages = const [HomePage(), DataPage(), SettingsPage()];
+    const pages = [HomePage(), DataPage(), SettingsPage()];
     final detener = mostrarDetener(s);
+    final pad = d.compacto ? Esp.l : Esp.xl - 4;
 
     final contenido = SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 140),
+      padding: EdgeInsets.fromLTRB(
+          pad, Esp.m, pad, d.lateral ? Esp.xxl + (detener ? 90 : 0) : 150),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1100),
+          constraints: const BoxConstraints(maxWidth: 1080),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             PageHeader(
               titulo: titulos[_tab],
               subtitulo: fechaLarga(ahora),
-              iniciales: s.esTecnico ? 'TÉ' : 'CI',
-              onAvatar: () => setState(() => _tab = 2),
+              compacto: d.compacto,
+              trailing: RolChip(tecnico: s.esTecnico, onTap: () => _ir(2)),
             ),
             AnimatedSwitcher(
-              duration: animDur(context, 250),
+              duration: animDur(context, 220),
               child: KeyedSubtree(key: ValueKey(_tab), child: pages[_tab]),
             ),
           ]),
@@ -108,92 +134,77 @@ class _ShellState extends State<Shell> {
       ),
     );
 
-    return LayoutBuilder(builder: (context, c) {
-      final ancho = c.maxWidth >= 900;
-      final barraDetener = detener
-          ? Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 700),
-                child: const BarraDetener(),
-              ),
-            )
-          : const SizedBox.shrink();
+    final barraDetener = detener
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(Esp.l, 0, Esp.l, Esp.s),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: const BarraDetener(),
+            ),
+          )
+        : const SizedBox.shrink();
 
-      if (ancho) {
-        return Scaffold(
-          body: SafeArea(
-            child: Row(children: [
-              _NavLateral(
-                items: _items,
-                actual: _tab,
-                onTap: (i) => setState(() => _tab = i),
-              ),
-              Expanded(
-                child: Stack(children: [
-                  Positioned.fill(child: contenido),
-                  Positioned(
-                      left: 0, right: 0, bottom: 12,
-                      child: Center(child: barraDetener)),
-                ]),
-              ),
-            ]),
-          ),
-        );
-      }
-
+    if (d.lateral) {
       return Scaffold(
-        extendBody: true,
-        body: SafeArea(bottom: false, child: contenido),
-        bottomNavigationBar: SafeArea(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            barraDetener,
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: _NavInferior(
-                items: _items,
-                actual: _tab,
-                onTap: (i) => setState(() => _tab = i),
-              ),
+        body: SafeArea(
+          child: Row(children: [
+            _NavLateral(items: _items, actual: _tab, onTap: _ir, compacto: d.compacto),
+            Expanded(
+              child: Stack(children: [
+                Positioned.fill(child: contenido),
+                Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: Esp.s,
+                    child: Center(child: barraDetener)),
+              ]),
             ),
           ]),
         ),
       );
-    });
+    }
+
+    return Scaffold(
+      extendBody: true,
+      body: SafeArea(bottom: false, child: contenido),
+      bottomNavigationBar: SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          barraDetener,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Esp.m, 0, Esp.m, Esp.s),
+            child: _NavInferior(items: _items, actual: _tab, onTap: _ir),
+          ),
+        ]),
+      ),
+    );
   }
 }
 
 typedef _Item = (IconData, IconData, String);
 
 class _NavInferior extends StatelessWidget {
-  const _NavInferior(
-      {required this.items, required this.actual, required this.onTap});
+  const _NavInferior({required this.items, required this.actual, required this.onTap});
   final List<_Item> items;
   final int actual;
   final ValueChanged<int> onTap;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.ag;
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: Palette.tarjeta,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 24,
-              offset: const Offset(0, -2)),
-        ],
+        color: c.superficie,
+        borderRadius: BorderRadius.circular(28),
+        border: c.oscuro ? Border.all(color: c.linea) : null,
+        boxShadow: c.oscuro
+            ? null
+            : [BoxShadow(color: Colors.black.withValues(alpha: 0.07), blurRadius: 24)],
       ),
       child: Row(children: [
         for (var i = 0; i < items.length; i++)
           Expanded(
-            child: _NavBoton(
-              item: items[i],
-              activo: i == actual,
-              onTap: () => onTap(i),
-            ),
+            child: _NavBoton(item: items[i], activo: i == actual, onTap: () => onTap(i)),
           ),
       ]),
     );
@@ -201,31 +212,34 @@ class _NavInferior extends StatelessWidget {
 }
 
 class _NavLateral extends StatelessWidget {
-  const _NavLateral(
-      {required this.items, required this.actual, required this.onTap});
+  const _NavLateral({
+    required this.items,
+    required this.actual,
+    required this.onTap,
+    required this.compacto,
+  });
   final List<_Item> items;
   final int actual;
   final ValueChanged<int> onTap;
+  final bool compacto;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.ag;
     return Container(
-      width: 120,
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      width: compacto ? 84 : 104,
+      margin: EdgeInsets.all(compacto ? Esp.s : Esp.l),
+      padding: const EdgeInsets.symmetric(vertical: Esp.m, horizontal: 6),
       decoration: BoxDecoration(
-        color: Palette.tarjeta,
-        borderRadius: BorderRadius.circular(32),
+        color: c.superficie,
+        borderRadius: BorderRadius.circular(28),
+        border: c.oscuro ? Border.all(color: c.linea) : null,
       ),
       child: Column(children: [
         for (var i = 0; i < items.length; i++)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _NavBoton(
-              item: items[i],
-              activo: i == actual,
-              onTap: () => onTap(i),
-            ),
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _NavBoton(item: items[i], activo: i == actual, onTap: () => onTap(i)),
           ),
       ]),
     );
@@ -233,37 +247,34 @@ class _NavLateral extends StatelessWidget {
 }
 
 class _NavBoton extends StatelessWidget {
-  const _NavBoton(
-      {required this.item, required this.activo, required this.onTap});
+  const _NavBoton({required this.item, required this.activo, required this.onTap});
   final _Item item;
   final bool activo;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = activo ? Palette.normal : Palette.sinDatos;
+    final c = context.ag;
+    final color = activo ? Theme.of(context).colorScheme.primary : c.texto2;
     return Semantics(
       selected: activo,
       button: true,
       label: item.$3,
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(22),
         onTap: onTap,
         child: AnimatedContainer(
           duration: animDur(context, 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: activo ? Palette.seleccion : Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
+            color: activo ? c.seleccion : Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(activo ? item.$2 : item.$1, color: color, size: 26),
-            const SizedBox(height: 4),
+            Icon(activo ? item.$2 : item.$1, color: color, size: 24),
+            const SizedBox(height: 3),
             Text(item.$3,
-                style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14)),
+                style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)),
           ]),
         ),
       ),

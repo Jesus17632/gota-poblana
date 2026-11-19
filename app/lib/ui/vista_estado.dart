@@ -123,7 +123,6 @@ VistaEstado vistaDe(AppState s) {
       indicador: true,
       atenuado: false,
       titulo: 'Fuera de rango — el operador fue notificado',
-      detalle: 'La norma (NOM-127) pide pH entre 6.5 y 8.5.',
       queHacer: 'Evita usarla para beber hasta que el operador la revise.',
       icono: Icons.warning_amber_rounded,
     );
@@ -135,9 +134,8 @@ VistaEstado vistaDe(AppState s) {
     indicador: true,
     atenuado: false,
     titulo: 'Dentro del rango de la norma',
-    detalle: cerca
-        ? 'Cerca del límite de la norma (6.5–8.5).'
-        : 'La norma (NOM-127) pide pH entre 6.5 y 8.5.',
+    // En rango y lejos del límite no hace falta más texto: la escala lo explica.
+    detalle: cerca ? 'Cerca del límite de la norma (6.5–8.5).' : null,
   );
 }
 

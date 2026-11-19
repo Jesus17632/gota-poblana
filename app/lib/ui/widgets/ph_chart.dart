@@ -7,6 +7,7 @@ import '../../core/palette.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
 import '../format.dart';
+import '../tokens.dart';
 
 /// Gráfico de pH vs tiempo dibujado a mano (sin dependencias):
 /// banda 6.5–8.5 sombreada, umbral opcional, marcadores de eventos y
@@ -38,6 +39,7 @@ class PhChart extends StatelessWidget {
       width: double.infinity,
       child: CustomPaint(
         painter: _ChartPainter(
+          c: context.ag,
           lecturas: lecturas,
           desde: desde,
           hasta: hasta,
@@ -52,6 +54,7 @@ class PhChart extends StatelessWidget {
 
 class _ChartPainter extends CustomPainter {
   _ChartPainter({
+    required this.c,
     required this.lecturas,
     required this.desde,
     required this.hasta,
@@ -60,6 +63,7 @@ class _ChartPainter extends CustomPainter {
     required this.mostrarEventos,
   });
 
+  final AguaColors c;
   final List<Lectura> lecturas;
   final DateTime desde;
   final DateTime hasta;
@@ -67,7 +71,7 @@ class _ChartPainter extends CustomPainter {
   final bool mostrarHocl;
   final bool mostrarEventos;
 
-  static const _hoclColor = Color(0xFF7A8794);
+  Color get _hoclColor => c.texto2;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -98,12 +102,12 @@ class _ChartPainter extends CustomPainter {
     final bandBot = y(nomMin).clamp(plot.top, plot.bottom);
     canvas.drawRect(
       Rect.fromLTRB(plot.left, bandTop, plot.right, bandBot),
-      Paint()..color = Palette.normal.withValues(alpha: 0.10),
+      Paint()..color = Palette.normal.withValues(alpha: c.oscuro ? 0.16 : 0.10),
     );
 
     // Rejilla y etiquetas del eje pH
     final grid = Paint()
-      ..color = Palette.pista
+      ..color = c.linea
       ..strokeWidth = 1;
     final paso = (yMax - yMin) > 6 ? 2 : 1;
     for (var v = yMin.ceil(); v <= yMax; v += paso) {
@@ -217,7 +221,7 @@ class _ChartPainter extends CustomPainter {
                 pc,
                 4.5,
                 Paint()
-                  ..color = Palette.texto
+                  ..color = c.texto
                   ..style = PaintingStyle.stroke
                   ..strokeWidth = 1);
         }
@@ -241,13 +245,13 @@ class _ChartPainter extends CustomPainter {
   void _texto(Canvas c, String s, Offset at,
       {bool alignRight = false,
       bool center = false,
-      Color color = Palette.textoSecundario,
+      Color? color,
       double size = 11}) {
     final tp = TextPainter(
       text: TextSpan(
           text: s,
           style: TextStyle(
-              fontSize: size, color: color, fontWeight: FontWeight.w600)),
+              fontSize: size, color: color ?? c.texto2, fontWeight: FontWeight.w600)),
       textDirection: TextDirection.ltr,
     )..layout();
     var dx = at.dx;

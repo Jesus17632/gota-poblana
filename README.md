@@ -25,10 +25,15 @@ Arranca conectándose por **MQTT** al broker WebSocket del ESP32
 (`ws://172.20.10.9:81/`), con reintento cada 5 s. Sin hardware, entra como
 técnico y cambia a **Simulador** en Ajustes → Fuente de datos.
 
-### Roles
-- **Ciudadano** (por defecto): solo lectura.
-- **Técnico**: Ajustes → Modo técnico → PIN `1234` (se cambia en Ajustes).
-  Solo el técnico ve los controles de la bomba.
+### Primer uso
+Una introducción interactiva de menos de 50 s (con **Omitir**) explica la
+pecera, qué pH es seguro y qué pasa si el equipo falla, y al final se elige el rol:
+
+- **Ciudadano**: solo lectura.
+- **Técnico**: controles de la bomba, dispositivos y diagnósticos.
+
+El rol se cambia en Ajustes → Perfil (sin PIN). La introducción se puede volver
+a ver en Ajustes → Nodo y ayuda. Tema claro, oscuro o del sistema en Ajustes → Apariencia.
 
 ## Conectar el firmware real (MQTT)
 
@@ -104,6 +109,7 @@ Sonidos y vibración se desactivan en Ajustes. Todo queda en Datos → **Registr
 | **Temas MQTT, nodo, comandos, tonos, pulso máximo, interruptor de MQTT** | `app/lib/core/device_constants.dart` |
 | Tabla de colores del indicador universal (15 colores, pH 0–14) | `app/lib/core/ph_colors.dart` |
 | Paleta de estados | `app/lib/core/palette.dart` |
+| Colores claro/oscuro, espaciados | `app/lib/ui/tokens.dart` |
 | Cálculos (pKa, % HOCl, pH recomendado, NOM-127) | `app/lib/core/chem.dart` |
 | Campos del modelo unificado | `app/lib/data/models.dart` |
 | Simulador del ESP32 | `app/lib/data/simulador_esp32.dart` |

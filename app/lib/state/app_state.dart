@@ -40,6 +40,7 @@ enum Rol { ciudadano, tecnico }
 class AppState extends ChangeNotifier {
   AppState(this._prefs, {Sonidos? sonidos}) : _sonidos = sonidos ?? Sonidos() {
     settings.load(_prefs);
+    rol = settings.tecnico ? Rol.tecnico : Rol.ciudadano;
     _cargarHistorial();
   }
 
@@ -444,16 +445,21 @@ class AppState extends ChangeNotifier {
 
   // ---------- Roles ----------
 
-  bool entrarTecnico(String pin) {
-    if (pin.trim() != settings.pin) return false;
-    rol = Rol.tecnico;
-    _notificar();
-    return true;
+  /// Cambia el rol (ya sin PIN) y lo recuerda.
+  Future<void> cambiarRol(Rol r) async {
+    rol = r;
+    settings.tecnico = r == Rol.tecnico;
+    await guardarSettings();
   }
 
-  void salirTecnico() {
-    rol = Rol.ciudadano;
-    _notificar();
+  Future<void> terminarOnboarding(Rol r) async {
+    settings.onboardingVisto = true;
+    await cambiarRol(r);
+  }
+
+  Future<void> verOnboardingDeNuevo() async {
+    settings.onboardingVisto = false;
+    await guardarSettings();
   }
 
   // ---------- Órdenes (solo técnico) ----------

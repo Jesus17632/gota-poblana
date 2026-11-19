@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../core/palette.dart';
 import '../../state/diagnostico.dart';
 import '../app_scope.dart';
+import '../tokens.dart';
 import 'common.dart';
 
 /// Test completo estilo "arranque de Linux": cada verificación aparece en su
@@ -13,6 +14,7 @@ class DiagnosticoPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = AppScope.of(context);
+    final c = context.ag;
     final d = s.diagnostico;
     return ListenableBuilder(
       listenable: d,
@@ -40,7 +42,7 @@ class DiagnosticoPanel extends StatelessWidget {
                 color: d.contar(ResultadoPaso.falla) > 0
                     ? Palette.error
                     : Palette.normal,
-                backgroundColor: Palette.pista,
+                backgroundColor: c.linea,
               ),
             ),
             const SizedBox(height: 6),
@@ -48,8 +50,7 @@ class DiagnosticoPanel extends StatelessWidget {
               d.terminado
                   ? 'Terminado en ${(d.fin!.difference(d.inicio!).inMilliseconds / 1000).toStringAsFixed(1)} s'
                   : 'Verificando $hechos de $total…',
-              style: const TextStyle(
-                  fontSize: 12, color: Palette.textoSecundario),
+              style: TextStyle(fontSize: 12, color: c.texto2),
             ),
             const SizedBox(height: 12),
             AnimatedSize(
@@ -95,6 +96,7 @@ class _Linea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reducir = reducirMovimiento(context);
+    final c = context.ag;
     final contenido = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -103,20 +105,19 @@ class _Linea extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(paso.titulo,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 15)),
+                style: TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 15, color: c.texto)),
             if (paso.detalle != null)
               Text(paso.detalle!,
-                  style: const TextStyle(
-                      fontSize: 13, color: Palette.textoSecundario)),
+                  style: TextStyle(fontSize: 13, color: c.texto2)),
           ]),
         ),
         if (paso.duracion != null)
           Text('${paso.duracion!.inMilliseconds} ms',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 11,
-                  color: Palette.textoSecundario,
-                  fontFeatures: [FontFeature.tabularFigures()])),
+                  color: c.texto2,
+                  fontFeatures: const [FontFeature.tabularFigures()])),
       ]),
     );
     if (reducir) return contenido;
@@ -147,7 +148,7 @@ class _Etiqueta extends StatelessWidget {
       ResultadoPaso.falla => ('FALLA', Palette.error, Icons.close),
       ResultadoPaso.omitido => ('OMITIDO', Palette.sinDatos, Icons.remove),
       ResultadoPaso.corriendo => ('…', Palette.dosificando, null),
-      ResultadoPaso.pendiente => ('', Palette.pista, null),
+      ResultadoPaso.pendiente => ('', Palette.sinDatos, null),
     };
     final fg = Palette.textoSobre(color);
     return Container(

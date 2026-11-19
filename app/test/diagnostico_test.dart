@@ -24,7 +24,7 @@ Future<AppState> _app() async {
   final prefs = await SharedPreferences.getInstance();
   final s = AppState(prefs, sonidos: _SonidosMudos());
   await s.iniciar();
-  expect(s.entrarTecnico('1234'), isTrue);
+  await s.cambiarRol(Rol.tecnico);
   // Deja llegar las primeras lecturas
   await Future.delayed(const Duration(milliseconds: 600));
   return s;

@@ -1,4 +1,7 @@
-// Paleta por SIGNIFICADO. Cada color de estado va siempre con texto o ícono.
+// Paleta por SIGNIFICADO (igual en modo claro y oscuro).
+// Cada color de estado va siempre acompañado de texto o ícono.
+// Los neutros (fondo, texto, líneas) viven en ui/tokens.dart porque cambian
+// con el tema.
 import 'dart:ui' show Color;
 
 class Palette {
@@ -11,15 +14,16 @@ class Palette {
   static const error = Color(0xFFE5484D); // error / fuera de norma
   static const sinDatos = Color(0xFF8E8E93); // sin datos / falla de sensor
 
-  // Neutros de la interfaz
-  static const fondo = Color(0xFFF7F8F9);
-  static const tarjeta = Color(0xFFFFFFFF);
-  static const texto = Color(0xFF1C2226);
-  static const textoSecundario = Color(0xFF6E7880);
-  static const pista = Color(0xFFE1E8EB); // barras inactivas, separadores
-  static const seleccion = Color(0xFFE8F4F7); // fondo del ítem activo
+  static const tinta = Color(0xFF15191C); // texto oscuro sobre colores claros
+  static const blanco = Color(0xFFFFFFFF);
 
   /// Texto legible encima de un color (los amarillos llevan texto oscuro).
-  static Color textoSobre(Color c) =>
-      c.computeLuminance() > 0.5 ? texto : const Color(0xFFFFFFFF);
+  static Color textoSobre(Color c) => c.computeLuminance() > 0.45 ? tinta : blanco;
+
+  /// Versión de un color de estado apta para íconos/trazos sobre fondo claro
+  /// (los amarillos se oscurecen para tener contraste).
+  static Color legible(Color c, {required bool oscuro}) =>
+      (!oscuro && c.computeLuminance() > 0.6)
+          ? Color.lerp(c, tinta, 0.45)!
+          : c;
 }
