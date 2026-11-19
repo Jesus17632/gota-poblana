@@ -70,6 +70,7 @@ class HomePage extends StatelessWidget {
         const _Promedio24h(),
         // Sin errores, el test queda al final como botón rectangular.
         if (!s.hayErrorEquipo) const _BotonTest(),
+        const _BotonAyuda(),
       ];
       final columna = Column(children: [
         for (var i = 0; i < resto.length; i++) ...[
@@ -527,6 +528,38 @@ class _BotonTest extends StatelessWidget {
         onPressed: corriendo ? null : () => iniciarTest(context),
         icon: const Icon(Icons.fact_check_outlined),
         label: Text(corriendo ? 'Test en curso…' : 'Test de hardware y conectividad'),
+      ),
+    );
+  }
+}
+
+/// Botón "?" al final de Inicio: vuelve a mostrar la introducción.
+/// No borra nada (historial, ajustes y sesiones se conservan).
+class _BotonAyuda extends StatelessWidget {
+  const _BotonAyuda();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppScope.of(context);
+    final c = context.ag;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: Esp.s),
+        child: Column(children: [
+          IconButton.filledTonal(
+            tooltip: 'Ver la introducción',
+            iconSize: 28,
+            style: IconButton.styleFrom(
+              backgroundColor: c.seleccion,
+              foregroundColor: Theme.of(context).colorScheme.primary,
+              minimumSize: const Size(56, 56),
+            ),
+            onPressed: s.verOnboardingDeNuevo,
+            icon: const Icon(Icons.question_mark_rounded),
+          ),
+          const SizedBox(height: 4),
+          Text('¿Cómo funciona?', style: TextStyle(fontSize: 12, color: c.texto2)),
+        ]),
       ),
     );
   }

@@ -27,7 +27,7 @@ class _NotifPlugin extends Notificaciones {
     try {
       await _p.initialize(
         settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          android: AndroidInitializationSettings('@drawable/ic_stat_gota'),
           linux: LinuxInitializationSettings(defaultActionName: 'Abrir'),
         ),
       );
@@ -79,6 +79,8 @@ class _NotifPlugin extends Notificaciones {
                 ? AndroidNotificationCategory.alarm
                 : AndroidNotificationCategory.status,
             ticker: titulo,
+            icon: '@drawable/ic_stat_gota', // silueta blanca en la barra
+            largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
             subText: resumen,
             enableVibration: true,
             playSound: true,
@@ -113,6 +115,7 @@ class _NotifPlugin extends Notificaciones {
             importance: Importance.low, // fija y discreta, sin sonido
             priority: Priority.low,
             ongoing: true,
+            icon: '@drawable/ic_stat_gota',
             color: Color(0xFF218DAE),
             showWhen: false,
           ),
