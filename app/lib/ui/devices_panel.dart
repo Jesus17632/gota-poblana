@@ -3,6 +3,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../core/device_constants.dart';
+import '../core/fallas.dart';
 import '../core/palette.dart';
 import '../data/data_source.dart';
 import '../data/models.dart';
@@ -22,6 +23,23 @@ class DevicesPanel extends StatelessWidget {
     bool? detectado(String m) => mods == null ? null : (mods[m] ?? false);
     final led = hw?.led;
     final sensor = hw?.sensor ?? s.ultimo?.sensor;
+    // Primera falla de un módulo (críticas primero), para su tarjeta.
+    FallaHw? fallaDe(String m) {
+      final l = s.fallas.where((f) => f.modulo == m).toList();
+      return l.isEmpty ? null : l.first;
+    }
+
+    _Modulo conFalla(_Modulo base, String modulo) {
+      final f = fallaDe(modulo);
+      if (f == null) return base;
+      return _Modulo(
+        nombre: base.nombre,
+        valor: f.info.titulo,
+        color: f.critica ? Palette.error : Palette.precaucion,
+        icon: base.icon,
+        muestra: base.muestra,
+      );
+    }
 
     return SectionCard(
       title: 'Dispositivos',
@@ -45,13 +63,13 @@ class DevicesPanel extends StatelessWidget {
           const gap = 10.0;
           final w = (c.maxWidth - gap * (cols - 1)) / cols;
           final tarjetas = [
-            _Modulo(
+            conFalla(_Modulo(
               nombre: 'XC01 controlador',
               valor: s.xc01EnLinea ? 'En línea' : 'Fuera de línea',
               color: s.xc01EnLinea ? Palette.normal : Palette.sinDatos,
               icon: Icons.memory,
-            ),
-            _Modulo(
+            ), 'XC01'),
+            conFalla(_Modulo(
               nombre: 'XN13 relé (bomba)',
               valor: detectado('XN13') == false
                   ? 'No detectado'
@@ -60,8 +78,8 @@ class DevicesPanel extends StatelessWidget {
                   ? Palette.error
                   : (s.rele ? Palette.dosificando : Palette.sinDatos),
               icon: s.rele ? Icons.power : Icons.power_off,
-            ),
-            _Modulo(
+            ), 'XN13'),
+            conFalla(_Modulo(
               nombre: 'XN44 buzzer',
               valor: detectado('XN44') == false
                   ? 'No detectado'
@@ -74,8 +92,8 @@ class DevicesPanel extends StatelessWidget {
                       ? Palette.dosificando
                       : Palette.sinDatos),
               icon: Icons.volume_up_outlined,
-            ),
-            _Modulo(
+            ), 'XN44'),
+            conFalla(_Modulo(
               nombre: 'XN03 LED RGB',
               valor: detectado('XN03') == false
                   ? 'No detectado'
@@ -87,8 +105,8 @@ class DevicesPanel extends StatelessWidget {
               muestra: led == null
                   ? null
                   : Color.fromARGB(255, led[0], led[1], led[2]),
-            ),
-            _Modulo(
+            ), 'XN03'),
+            conFalla(_Modulo(
               nombre: 'Sonda de pH',
               valor: switch (sensor) {
                 null => '—',
@@ -100,7 +118,15 @@ class DevicesPanel extends StatelessWidget {
                   ? Palette.normal
                   : Palette.error,
               icon: Icons.sensors,
-            ),
+            ), 'PH'),
+            conFalla(_Modulo(
+              nombre: 'Sensor de temperatura',
+              valor: s.ultimo?.tempC == null
+                  ? 'Sin dato'
+                  : '${s.ultimo!.tempC!.toStringAsFixed(1)} °C',
+              color: s.ultimo?.tempC == null ? Palette.sinDatos : Palette.normal,
+              icon: Icons.thermostat,
+            ), 'TEMP'),
           ];
           return Wrap(spacing: gap, runSpacing: gap, children: [
             for (final t in tarjetas) SizedBox(width: w, child: t),
@@ -165,14 +191,27 @@ class DevicesPanel extends StatelessWidget {
                   'cálculos usen esta temperatura.',
             ),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(foregroundColor: Palette.error),
-            icon: const Icon(Icons.sensors_off),
-            label: const Text('Simular falla de sensor'),
-            onPressed: () => s.simularFallaSensor(),
-          ),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: Palette.error),
+              icon: const Icon(Icons.sensors_off),
+              label: const Text('Simular falla de sensor'),
+              onPressed: () => s.simularFallaSensor(),
+            ),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: Palette.error),
+              icon: const Icon(Icons.build_outlined),
+              label: const Text('Simular otra falla…'),
+              onPressed: () => _elegirFalla(context, s),
+            ),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.healing_outlined),
+              label: const Text('Quitar fallas'),
+              onPressed: s.fallas.isEmpty ? null : s.limpiarFallasSimuladas,
+            ),
+          ]),
           const SizedBox(height: 4),
-          const Text('"Detener" restablece la sonda en el simulador.',
+          const Text('"Detener" también restablece el hardware simulado.',
               style: TextStyle(fontSize: 12, color: Palette.textoSecundario)),
         ],
       ]),
@@ -207,6 +246,35 @@ class DevicesPanel extends StatelessWidget {
       ),
     );
     if (ok == true) await _intentar(() => s.probarBomba());
+  }
+
+  Future<void> _elegirFalla(BuildContext context, AppState s) async {
+    final codigo = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Simular falla de hardware'),
+        children: [
+          for (final e in Fallas.catalogo.entries)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, e.key),
+              child: Row(children: [
+                Icon(
+                  e.value.severidad == Severidad.critica
+                      ? Icons.error
+                      : Icons.warning_amber_rounded,
+                  size: 20,
+                  color: e.value.severidad == Severidad.critica
+                      ? Palette.error
+                      : Palette.textoSecundario,
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(e.value.titulo)),
+              ]),
+            ),
+        ],
+      ),
+    );
+    if (codigo != null) s.simularFalla(codigo);
   }
 
   Future<void> _elegirColor(BuildContext context, AppState s) async {

@@ -10,6 +10,15 @@
 #include <Arduino.h>
 
 // ---------------------------------------------------------------------------
+// 0. Red: el ESP32 es el BROKER MQTT sobre WebSocket (misma red que la app)
+//    La app se conecta por defecto a  ws://172.20.10.9:81/   (cambiable en la app)
+//    El puerto 80 queda para el servidor HTTP (/datos, /led).
+// ---------------------------------------------------------------------------
+constexpr uint16_t MQTT_WS_PUERTO = 81;    // WebSocket del broker embebido
+#define            MQTT_WS_RUTA     "/"
+constexpr uint16_t MQTT_TCP_PUERTO = 1883; // opcional: para mosquitto_pub/sub
+
+// ---------------------------------------------------------------------------
 // 1. Nodo y temas MQTT   (tema completo = "agua/" + NODO + "/" + sufijo)
 // ---------------------------------------------------------------------------
 #define AGUA_NODO            "nodo1"
@@ -119,11 +128,47 @@
 #define K_HW_BUZZER          "buzzer"     // "silencio" | "sonando"
 #define K_HW_SENSOR          "sensor"     // SENSOR_*
 #define K_HW_MODULOS         "modulos"    // objeto { "XN03": bool, "XN13": bool, "XN44": bool }
+#define K_HW_FALLAS          "fallas"     // array de fallas activas (sección 6b); [] si no hay
 #define BUZZER_SILENCIO      "silencio"
 #define BUZZER_SONANDO       "sonando"
 #define MOD_XN03             "XN03"
 #define MOD_XN13             "XN13"
 #define MOD_XN44             "XN44"
+
+// ---------------------------------------------------------------------------
+// 6b. Fallas de hardware (dentro de TEMA_HARDWARE, campo "fallas")
+//    [{"codigo":"BOMBA_DESCONECTADA","severidad":"critica","modulo":"XN13",
+//      "detalle":"texto opcional"}]
+//    - Publica la lista COMPLETA de fallas activas cada vez (vacía = todo bien).
+//    - Al aparecer una falla CRÍTICA: apaga el relé, estado ERROR, evento ERROR
+//      con detalle = descripción, y RECHAZA dosificar / p mientras siga activa.
+//    - "detener" limpia el estado ERROR solo si la causa ya desapareció.
+//    - "severidad" y "modulo" son opcionales: la app los conoce por el código.
+// ---------------------------------------------------------------------------
+#define K_FALLA_CODIGO       "codigo"
+#define K_FALLA_SEVERIDAD    "severidad"   // "critica" | "advertencia"
+#define K_FALLA_MODULO       "modulo"      // XC01 XN03 XN13 XN44 PH TEMP
+#define K_FALLA_DETALLE      "detalle"
+#define SEV_CRITICA          "critica"
+#define SEV_ADVERTENCIA      "advertencia"
+#define MOD_PH               "PH"
+#define MOD_TEMP             "TEMP"
+#define MOD_XC01             "XC01"
+
+//                    código                         severidad    módulo  cuándo
+#define FALLA_SENSOR_PH_DESCONECTADO  "SENSOR_PH_DESCONECTADO"  // crítica  PH   lectura AN en 0 o saturada
+#define FALLA_SENSOR_PH_FUERA_RANGO   "SENSOR_PH_FUERA_RANGO"   // crítica  PH   pH < 0 o > 14 tras filtrar
+#define FALLA_SENSOR_PH_SIN_RESPUESTA "SENSOR_PH_SIN_RESPUESTA" // crítica  PH   lectura congelada / sin cambios
+#define FALLA_SENSOR_TEMP_DESCONECTADO "SENSOR_TEMP_DESCONECTADO" // advert. TEMP sin sensor de temperatura
+#define FALLA_BOMBA_DESCONECTADA      "BOMBA_DESCONECTADA"      // crítica  XN13 relé ON pero no hay consumo/flujo
+#define FALLA_RELE_NO_RESPONDE        "RELE_NO_RESPONDE"        // crítica  XN13 sin ACK I2C en 0x0D
+#define FALLA_BUZZER_NO_RESPONDE      "BUZZER_NO_RESPONDE"      // advert.  XN44 sin ACK I2C en 0x2C
+#define FALLA_LED_NO_RESPONDE         "LED_NO_RESPONDE"         // advert.  XN03 sin ACK I2C en 0x03
+#define FALLA_I2C_BUS_ERROR           "I2C_BUS_ERROR"           // crítica  XC01 bus I2C bloqueado
+#define FALLA_ACIDO_AGOTADO           "ACIDO_AGOTADO"           // crítica  —    no alcanza para un pulso
+#define FALLA_ACIDO_BAJO              "ACIDO_BAJO"              // advert.  —    < 20 mL
+#define FALLA_CALIBRACION_PENDIENTE   "CALIBRACION_PENDIENTE"   // advert.  PH   nunca calibrado
+#define FALLA_WIFI_DEBIL              "WIFI_DEBIL"              // advert.  XC01 RSSI < -80 dBm
 
 // ---------------------------------------------------------------------------
 // 7. Límites de seguridad (los aplica el FIRMWARE; la app solo los muestra)

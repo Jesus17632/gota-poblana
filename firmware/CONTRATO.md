@@ -13,10 +13,29 @@ con estos nombres; si cambias uno, deja de funcionar.
 
 ## Conexión
 
-- Librería sugerida: **PubSubClient** (MQTT por TCP) + **ArduinoJson**.
-- El ESP32 se conecta al broker por **TCP (puerto 1883)**. La app se conecta al **mismo broker** por **WebSocket**. El broker reenvía entre ambos; no necesitas WebSocket en el ESP32.
-- Usa `client.setBufferSize(1024)`: la telemetría pasa de los 256 bytes por defecto.
-- Suscríbete a `TEMA_CMD` y `TEMA_UMBRAL`.
+**El ESP32 es el broker.** No hay servidor externo: el ESP32 levanta un broker
+MQTT que acepta conexiones por **WebSocket**, y la app (teléfono, PC o web) se
+conecta a él en la misma red Wi-Fi.
+
+| | Valor por defecto en la app | Constante |
+|---|---|---|
+| Host | `172.20.10.9` (la IP que imprime el ESP32 por Serial) | — |
+| Puerto WebSocket | `81` (el 80 queda para el HTTP `/datos` y `/led`) | `MQTT_WS_PUERTO` |
+| Ruta | `/` | `MQTT_WS_RUTA` |
+| Nodo | `nodo1` | `AGUA_NODO` |
+
+URL completa: `ws://172.20.10.9:81/`. Todo se puede cambiar desde la app en
+Ajustes → Fuente de datos, por si cambia la IP del hotspot.
+
+- Librería sugerida: **PicoMQTT** (broker MQTT para ESP32) con su soporte de WebSocket
+  (librería **PicoWebsocket**), más **ArduinoJson**. Revisa el ejemplo de
+  "websocket server" de PicoMQTT para la inicialización exacta.
+- Como el firmware es el propio broker, publica con `mqtt.publish(tema, texto)` y
+  recibe las órdenes suscribiéndote localmente a `TEMA_CMD` y `TEMA_UMBRAL`.
+- Opcional: abre también el puerto TCP `1883` para probar con `mosquitto_pub/sub`.
+- Alternativa equivalente: un broker Mosquitto en una laptop de la misma red
+  (con listener WebSocket). En ese caso el ESP32 es cliente (PubSubClient,
+  `setBufferSize(1024)`) y en la app se cambia el host.
 
 | Tema | Dirección | Formato | QoS | retain |
 |---|---|---|---|---|
@@ -47,6 +66,7 @@ Si pasan más de 10 s sin lecturas, la app muestra "Sin datos recientes".
 | `a 100` | — | `ACK` "Ácido: 100 mL" |
 | `test_buzzer inicio\|fin\|error` | — | `BUZZER` con `detalle` = la secuencia |
 | `test_led r g b` | — | `LED` con `detalle` = `"r g b"` |
+| `dosificar` / `p <ms>` | falla crítica activa | `RECHAZO` "Falla de hardware: <descripción>" |
 | otra | — | `RECHAZO` "Orden desconocida" |
 | `TEMA_UMBRAL` "x.xx" | fuera de 4.5–7.0 | `RECHAZO` "Umbral fuera de rango (4.5–7.0)" con `"cmd":"umbral x.xx"` |
 | | válido | actualiza `umbral` (sin evento) |
@@ -79,9 +99,40 @@ Si falla la sonda: relé apagado, estado `ERROR`, `sensor: "SIN_RESPUESTA"` y ev
 **hardware:**
 ```json
 {"rele":false,"led":[0,255,0],"buzzer":"silencio","sensor":"OK",
- "modulos":{"XN03":true,"XN13":true,"XN44":true}}
+ "modulos":{"XN03":true,"XN13":true,"XN44":true},
+ "fallas":[{"codigo":"BOMBA_DESCONECTADA","severidad":"critica","modulo":"XN13",
+            "detalle":"Relé ON sin flujo"}]}
 ```
 `modulos`: pon `false` si un módulo I2C no responde. La app lo muestra como "No detectado".
+
+## Fallas de hardware
+
+Publica en `hardware.fallas` la **lista completa** de fallas activas cada vez
+(`[]` si todo está bien). La app muestra cada una con título, módulo y qué
+hacer, y avisa con sonido si es crítica.
+
+| Código | Severidad | Módulo | Cuándo |
+|---|---|---|---|
+| `SENSOR_PH_DESCONECTADO` | crítica | PH | lectura AN en 0 o saturada |
+| `SENSOR_PH_FUERA_RANGO` | crítica | PH | pH < 0 o > 14 tras filtrar |
+| `SENSOR_PH_SIN_RESPUESTA` | crítica | PH | lectura congelada |
+| `SENSOR_TEMP_DESCONECTADO` | advertencia | TEMP | no hay sensor de temperatura |
+| `BOMBA_DESCONECTADA` | crítica | XN13 | relé encendido sin consumo/flujo |
+| `RELE_NO_RESPONDE` | crítica | XN13 | sin ACK I2C en 0x0D |
+| `BUZZER_NO_RESPONDE` | advertencia | XN44 | sin ACK I2C en 0x2C |
+| `LED_NO_RESPONDE` | advertencia | XN03 | sin ACK I2C en 0x03 |
+| `I2C_BUS_ERROR` | crítica | XC01 | bus I2C bloqueado |
+| `ACIDO_AGOTADO` | crítica | — | no alcanza para un pulso |
+| `ACIDO_BAJO` | advertencia | — | menos de 20 mL |
+| `CALIBRACION_PENDIENTE` | advertencia | PH | nunca calibrado |
+| `WIFI_DEBIL` | advertencia | XC01 | RSSI < −80 dBm |
+
+Reglas para las **críticas**: apaga el relé, pasa a `ERROR`, publica el evento
+`ERROR` con la descripción y rechaza `dosificar` y `p` con
+`RECHAZO "Falla de hardware: <descripción>"` mientras siga activa.
+`detener` limpia el `ERROR` solo cuando la causa desapareció.
+Detección I2C sugerida: `Wire.beginTransmission(dir); Wire.endTransmission() != 0` → no responde.
+Puedes agregar códigos nuevos: la app los muestra igual (como críticos) aunque no estén en su catálogo.
 
 ## Código de ejemplo (ArduinoJson 7 + PubSubClient)
 
@@ -155,10 +206,11 @@ void onMensaje(char* topic, byte* payload, unsigned int len) {
 ## Cómo probar sin la app
 
 ```bash
-mosquitto_sub -h <broker> -t 'agua/nodo1/#' -v           # ver todo lo que publicas
-mosquitto_pub -h <broker> -t agua/nodo1/cmd -m 'p 2000'   # debe llegar RECHAZO
-mosquitto_pub -h <broker> -t agua/nodo1/umbral -m '6.60'
-mosquitto_pub -h <broker> -t agua/nodo1/cmd -m 'dosificar'
+# si abriste el puerto TCP 1883 en el ESP32:
+mosquitto_sub -h 172.20.10.9 -t 'agua/nodo1/#' -v           # ver todo lo que publicas
+mosquitto_pub -h 172.20.10.9 -t agua/nodo1/cmd -m 'p 2000'   # debe llegar RECHAZO
+mosquitto_pub -h 172.20.10.9 -t agua/nodo1/umbral -m '6.60'
+mosquitto_pub -h 172.20.10.9 -t agua/nodo1/cmd -m 'dosificar'
 ```
 
 La referencia de comportamiento es el simulador de la app (`app/lib/data/simulador_esp32.dart`).

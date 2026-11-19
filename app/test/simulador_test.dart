@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agua/core/device_constants.dart';
+import 'package:agua/core/fallas.dart';
 import 'package:agua/core/wav.dart';
 import 'package:agua/data/data_source.dart';
 import 'package:agua/data/models.dart';
@@ -86,6 +87,41 @@ void main() {
     sim.simularFallaSensor();
     expect((await f).tipo, TipoEvento.error);
     expect((await hw).rele, isFalse);
+  });
+
+  test('falla crítica (bomba desconectada) → dosificar RECHAZO', () async {
+    sim.simularFalla(Fallas.bombaDesconectada);
+    final f = primerEvento(sim, donde: (e) => e.tipo == TipoEvento.rechazo);
+    await sim.enviarCmd(Cmd.dosificar);
+    expect((await f).detalle, contains('Bomba desconectada'));
+  });
+
+  test('hardware publica las fallas activas; detener las limpia', () async {
+    sim.simularFalla(Fallas.buzzerNoResponde);
+    final h = await sim.hardware
+        .firstWhere((h) => h.fallas.isNotEmpty)
+        .timeout(const Duration(seconds: 2));
+    expect(h.tieneFalla(Fallas.buzzerNoResponde), isTrue);
+    expect(h.modulos?['XN44'], isFalse);
+    await sim.enviarCmd(Cmd.detener);
+    final h2 = await sim.hardware.first.timeout(const Duration(seconds: 2));
+    expect(h2.fallas, isEmpty);
+  });
+
+  test('FallaHw: acepta objeto o texto y usa el catálogo', () {
+    final a = HardwareEstado.fromMap({
+      'fallas': [
+        {'codigo': 'BOMBA_DESCONECTADA', 'detalle': 'sin corriente'},
+        'acido_bajo',
+        {'sin_codigo': true},
+      ]
+    });
+    expect(a.fallas.length, 2);
+    expect(a.fallas[0].critica, isTrue);
+    expect(a.fallas[0].modulo, 'XN13');
+    expect(a.fallas[1].codigo, 'ACIDO_BAJO');
+    expect(a.fallas[1].critica, isFalse);
+    expect(a.hayCriticas, isTrue);
   });
 
   test('WAV: cabecera RIFF y tamaño esperado', () {

@@ -12,12 +12,14 @@
 //  a <ml>     · inventario de ácido → ACK
 //  test_buzzer <inicio|fin|error> → BUZZER
 //  test_led <r> <g> <b>           → LED
+//  Fallas críticas activas → dosificar / p se RECHAZAN con el motivo.
 //  Ácido: ~33 mL por segundo de bomba.
 //  Cada orden se responde con 150–400 ms de retardo (como la red).
 import 'dart:async';
 import 'dart:math' as math;
 
 import '../core/device_constants.dart';
+import '../core/fallas.dart';
 import 'data_source.dart';
 import 'models.dart';
 
@@ -57,6 +59,9 @@ class SimuladorESP32 implements DataSource {
   DateTime? _ledPruebaHasta;
   bool _buzzer = false;
   SensorEstado _sensor = SensorEstado.ok;
+
+  /// Fallas simuladas activas (códigos de Fallas). "detener" las limpia.
+  final Set<String> _fallasSim = {};
 
   /// Temperatura del agua simulada (°C). Se cambia desde el panel Dispositivos.
   double temperaturaC = 22.0;
@@ -152,7 +157,12 @@ class SimuladorESP32 implements DataSource {
       led: _ledActual,
       buzzer: _buzzer ? 'sonando' : 'silencio',
       sensor: _sensor,
-      modulos: const {'XN03': true, 'XN13': true, 'XN44': true},
+      modulos: {
+        'XN03': !_fallasSim.contains(Fallas.ledNoResponde),
+        'XN13': !_fallasSim.contains(Fallas.releNoResponde),
+        'XN44': !_fallasSim.contains(Fallas.buzzerNoResponde),
+      },
+      fallas: _fallasActivas,
     ));
   }
 
@@ -240,18 +250,67 @@ class SimuladorESP32 implements DataSource {
     _emitir();
   }
 
-  /// Botón de desarrollo: la sonda deja de responder.
-  void simularFallaSensor() {
-    _gen++;
-    if (_rele) {
-      _rele = false;
-      _evento(TipoEvento.releOff, detalle: 'Paro por falla de sensor');
+  /// Fallas activas: las simuladas + las de inventario (automáticas).
+  List<FallaHw> get _fallasActivas {
+    final codigos = {..._fallasSim};
+    if (_acido < _mlDe(40)) {
+      codigos.add(Fallas.acidoAgotado);
+    } else if (_acido < DeviceConst.acidoBajoMl) {
+      codigos.add(Fallas.acidoBajo);
     }
-    _estado = CtrlEstado.error;
-    _sensor = SensorEstado.sinRespuesta;
-    _errorMsg = 'Sonda de pH sin respuesta';
-    _inicio = null;
-    _evento(TipoEvento.error, detalle: _errorMsg);
+    return [
+      for (final c in codigos)
+        FallaHw(
+            codigo: c,
+            severidad: Fallas.info(c).severidad,
+            modulo: Fallas.info(c).modulo),
+    ];
+  }
+
+  FallaHw? get _primeraCritica {
+    for (final f in _fallasActivas) {
+      // El ácido agotado ya tiene su propio rechazo ("Ácido insuficiente").
+      if (f.critica && f.codigo != Fallas.acidoAgotado) return f;
+    }
+    return null;
+  }
+
+  /// Botón de desarrollo: la sonda deja de responder.
+  void simularFallaSensor() => simularFalla(Fallas.sensorPhSinRespuesta);
+
+  /// Botón de desarrollo: activa una falla de hardware.
+  /// Las críticas apagan el relé y pasan a ERROR, como el firmware real.
+  void simularFalla(String codigo) {
+    _fallasSim.add(codigo);
+    final info = Fallas.info(codigo);
+    if (codigo == Fallas.sensorPhSinRespuesta ||
+        codigo == Fallas.sensorPhDesconectado) {
+      _sensor = SensorEstado.sinRespuesta;
+    } else if (codigo == Fallas.sensorPhFueraRango) {
+      _sensor = SensorEstado.fueraRango;
+    }
+    if (info.severidad == Severidad.critica) {
+      _gen++;
+      if (_rele) {
+        _rele = false;
+        _evento(TipoEvento.releOff, detalle: 'Paro por falla: ${info.titulo}');
+      }
+      _estado = CtrlEstado.error;
+      _errorMsg = info.titulo;
+      _inicio = null;
+      _evento(TipoEvento.error, detalle: info.titulo);
+    }
+    _emitir();
+  }
+
+  /// Botón de desarrollo: quita todas las fallas simuladas.
+  void limpiarFallas() {
+    _fallasSim.clear();
+    _sensor = SensorEstado.ok;
+    if (_estado == CtrlEstado.error) {
+      _estado = CtrlEstado.idle;
+      _errorMsg = null;
+    }
     _emitir();
   }
 
@@ -268,6 +327,12 @@ class SimuladorESP32 implements DataSource {
   }
 
   void _dosificar(String cmd) {
+    final falla = _primeraCritica;
+    if (falla != null && _sensor == SensorEstado.ok) {
+      _evento(TipoEvento.rechazo,
+          detalle: 'Falla de hardware: ${falla.info.titulo}', cmd: cmd);
+      return;
+    }
     if (_sensor != SensorEstado.ok) {
       _evento(TipoEvento.rechazo, detalle: 'Sensor sin respuesta', cmd: cmd);
       return;
@@ -369,7 +434,9 @@ class SimuladorESP32 implements DataSource {
     }
     _estado = CtrlEstado.idle;
     _errorMsg = null;
-    _sensor = SensorEstado.ok; // en el simulador, detener "repara" la sonda
+    // En el simulador, detener "repara" el hardware simulado.
+    _sensor = SensorEstado.ok;
+    _fallasSim.clear();
     _inicio = null;
     _evento(TipoEvento.ack, detalle: 'Bomba detenida', cmd: cmd);
   }
@@ -389,6 +456,13 @@ class SimuladorESP32 implements DataSource {
       _evento(TipoEvento.rechazo,
           detalle: 'Hay una dosificación en curso', cmd: cmd);
       return;
+    }
+    for (final c in const [Fallas.bombaDesconectada, Fallas.releNoResponde, Fallas.busI2c]) {
+      if (_fallasSim.contains(c)) {
+        _evento(TipoEvento.rechazo,
+            detalle: 'Falla de hardware: ${Fallas.info(c).titulo}', cmd: cmd);
+        return;
+      }
     }
     final ml = _mlDe(ms);
     if (_acido < ml) {

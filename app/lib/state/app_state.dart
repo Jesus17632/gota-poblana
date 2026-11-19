@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/chem.dart';
 import '../core/device_constants.dart';
+import '../core/fallas.dart';
 import '../data/data_source.dart';
 import '../data/models.dart';
 import '../data/mqtt_source.dart';
@@ -17,7 +18,7 @@ import '../data/simulador_esp32.dart';
 import '../services/sonidos.dart';
 import 'settings.dart';
 
-enum TipoAviso { inicio, fin, error, fueraNorma, rechazo, info }
+enum TipoAviso { inicio, fin, error, fueraNorma, rechazo, advertencia, info }
 
 class Aviso {
   final TipoAviso tipo;
@@ -217,10 +218,35 @@ class AppState extends ChangeNotifier {
   }
 
   void _onHardware(HardwareEstado h) {
+    final antes = {for (final f in hw?.fallas ?? const <FallaHw>[]) f.codigo};
     hw = h;
     hwRecibido = DateTime.now();
     if (h.rele != null) rele = h.rele!;
+
+    final ahora = {for (final f in h.fallas) f.codigo};
+    for (final f in h.fallas.where((f) => !antes.contains(f.codigo))) {
+      final txt = f.info.titulo + (f.detalle == null ? '' : ' (${f.detalle})');
+      _log('FALLA', '$txt [${f.codigo}]');
+      if (f.critica) {
+        _alerta(TipoAviso.error, 'Falla de hardware: $txt', Tono.error,
+            settings.notifError);
+      } else if (esTecnico) {
+        _avisar(TipoAviso.advertencia, txt);
+      }
+    }
+    for (final c in antes.difference(ahora)) {
+      _log('FALLA RESUELTA', '${Fallas.info(c).titulo} [$c]');
+    }
   }
+
+  /// Fallas de hardware activas, críticas primero.
+  List<FallaHw> get fallas {
+    final l = [...?hw?.fallas];
+    l.sort((a, b) => (a.critica ? 0 : 1).compareTo(b.critica ? 0 : 1));
+    return l;
+  }
+
+  bool get hayFallasCriticas => hw?.hayCriticas ?? false;
 
   // ---------- Entrada: eventos ----------
 
@@ -374,6 +400,16 @@ class AppState extends ChangeNotifier {
   void simularFallaSensor() {
     _exigirTecnico();
     _sim?.simularFallaSensor();
+  }
+
+  void simularFalla(String codigo) {
+    _exigirTecnico();
+    _sim?.simularFalla(codigo);
+  }
+
+  void limpiarFallasSimuladas() {
+    _exigirTecnico();
+    _sim?.limpiarFallas();
   }
 
   // ---------- Roles ----------

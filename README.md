@@ -21,7 +21,9 @@ flutter run -d <id-telefono>    # Android (ver `flutter devices`)
 flutter run -d web-server --web-port 8080
 ```
 
-Arranca con el **simulador** activado, así que la demo corre sin hardware.
+Arranca conectándose por **MQTT** al broker WebSocket del ESP32
+(`ws://172.20.10.9:81/`), con reintento cada 5 s. Sin hardware, entra como
+técnico y cambia a **Simulador** en Ajustes → Fuente de datos.
 
 ### Roles
 - **Ciudadano** (por defecto): solo lectura.
@@ -30,11 +32,15 @@ Arranca con el **simulador** activado, así que la demo corre sin hardware.
 
 ## Conectar el firmware real (MQTT)
 
-Hoy la app usa el **SimuladorESP32**, que imita al firmware. Para usar el equipo real:
+MQTT está **activo por defecto**. El ESP32 hace de broker MQTT sobre WebSocket
+en la misma red. El contrato para el firmware está en
+[`firmware/CONTRATO.md`](firmware/CONTRATO.md) y los nombres listos para el `.ino`
+en [`firmware/agua_contrato.h`](firmware/agua_contrato.h).
 
-1. En `app/lib/core/device_constants.dart` cambia `mqttHabilitado` a `true`.
-2. En la app: entra como técnico → Ajustes → Fuente de datos → **MQTT**.
-3. Configura **Host**, **Puerto** (listener WebSocket del broker, p. ej. Mosquitto `9001`), **Ruta** (`/mqtt` o vacía) y **Nodo**.
+- Valores por defecto: host `172.20.10.9`, puerto `81`, ruta `/`, nodo `nodo1`
+  (en `app/lib/core/device_constants.dart`).
+- Se cambian desde la app: técnico → Ajustes → Fuente de datos (Host, Puerto, Ruta, Nodo).
+- `mqttHabilitado = false` apaga MQTT por completo.
 
 > La app **nunca** toca pines ni I2C. Solo manda órdenes de alto nivel; el ESP32
 > valida los límites de seguridad, actúa y responde con eventos. La UI muestra
@@ -57,7 +63,7 @@ Hoy la app usa el **SimuladorESP32**, que imita al firmware. Para usar el equipo
 | `agua/<nodo>/estado` | `IDLE` \| `PULSO` \| `MEZCLA` \| `ERROR` |
 | `agua/<nodo>/telemetria` | JSON del modelo unificado (`ts`, `ph`, `estado`, `bomba`, `umbral`, `acido_restante_ml`, `resumen`, …) |
 | `agua/<nodo>/evento` | `{"ts", "tipo", "detalle", "cmd"}` con `tipo` = `INICIO` `FIN` `RECHAZO` `ERROR` `RELE_ON` `RELE_OFF` `BUZZER` `LED` `ACK` |
-| `agua/<nodo>/hardware` | `{"rele", "led":[r,g,b], "buzzer":"silencio"\|"sonando", "sensor", "modulos":{"XN03","XN13","XN44"}}` |
+| `agua/<nodo>/hardware` | `{"rele", "led":[r,g,b], "buzzer":"silencio"\|"sonando", "sensor", "modulos":{"XN03","XN13","XN44"}}`, "fallas":[{"codigo","severidad","modulo","detalle"}]}` |
 
 **Importante para el firmware:** incluye en cada evento de respuesta el campo
 `"cmd"` con la orden original (p. ej. `"cmd":"p 100"`). Así la app sabe a qué

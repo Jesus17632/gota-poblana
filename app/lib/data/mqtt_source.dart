@@ -54,6 +54,8 @@ class MqttSource implements DataSource {
   MqttClient? _client;
   StreamSubscription? _sub;
   String? _error;
+  Timer? _reintento;
+  bool _activo = false; // false tras stop(): no reintentar
 
   /// Estado combinado de ph + estado + telemetria.
   final Map<String, dynamic> _merged = {};
@@ -82,6 +84,19 @@ class MqttSource implements DataSource {
   @override
   Future<void> start() async {
     await stop();
+    _activo = true;
+    await _conectar();
+  }
+
+  void _programarReintento() {
+    _reintento?.cancel();
+    if (!_activo) return;
+    _reintento = Timer(DeviceConst.mqttReintento, () {
+      if (_activo) _conectar();
+    });
+  }
+
+  Future<void> _conectar() async {
     if (!DeviceConst.mqttHabilitado) {
       _error = 'MQTT desactivado: el firmware aún no existe. '
           'Actívalo con DeviceConst.mqttHabilitado = true.';
@@ -107,10 +122,12 @@ class MqttSource implements DataSource {
     try {
       await client.connect();
     } catch (e) {
-      _error = e.toString();
+      _error = 'No se pudo conectar a $url:$port ($e). '
+          'Reintentando cada ${DeviceConst.mqttReintento.inSeconds} s…';
       client.disconnect();
       _client = null;
       _con.add(ConexionEstado.error);
+      _programarReintento();
       return;
     }
     if (client.connectionStatus?.state != MqttConnectionState.connected) {
@@ -119,8 +136,10 @@ class MqttSource implements DataSource {
       client.disconnect();
       _client = null;
       _con.add(ConexionEstado.error);
+      _programarReintento();
       return;
     }
+    _error = null;
 
     for (final t in topics.entrada) {
       client.subscribe(t, MqttQos.atMostOnce);
@@ -199,6 +218,9 @@ class MqttSource implements DataSource {
 
   @override
   Future<void> stop() async {
+    _activo = false;
+    _reintento?.cancel();
+    _reintento = null;
     await _sub?.cancel();
     _sub = null;
     final c = _client;

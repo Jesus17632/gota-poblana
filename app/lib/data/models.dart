@@ -1,3 +1,5 @@
+import '../core/fallas.dart';
+
 // Modelo de estado unificado. Los nombres de los campos JSON son el contrato
 // con el firmware: NO los cambies sin avisar.
 
@@ -285,16 +287,82 @@ class EventoDispositivo {
       };
 }
 
+/// Una falla activa: {"codigo":"BOMBA_DESCONECTADA","severidad":"critica",
+///  "modulo":"XN13","detalle":"texto opcional"}
+class FallaHw {
+  final String codigo;
+  final Severidad severidad;
+  final String? modulo;
+  final String? detalle;
+
+  const FallaHw({
+    required this.codigo,
+    required this.severidad,
+    this.modulo,
+    this.detalle,
+  });
+
+  InfoFalla get info => Fallas.info(codigo);
+  bool get critica => severidad == Severidad.critica;
+
+  static FallaHw? fromJson(Object? v) {
+    // Se acepta también un texto suelto: "BOMBA_DESCONECTADA"
+    if (v is String && v.trim().isNotEmpty) {
+      final c = v.trim().toUpperCase();
+      return FallaHw(
+          codigo: c,
+          severidad: Fallas.info(c).severidad,
+          modulo: Fallas.info(c).modulo);
+    }
+    if (v is! Map) return null;
+    final c = _s(v['codigo'])?.trim().toUpperCase();
+    if (c == null || c.isEmpty) return null;
+    final sev = switch (_s(v['severidad'])?.toLowerCase()) {
+      'critica' || 'crítica' => Severidad.critica,
+      'advertencia' => Severidad.advertencia,
+      _ => Fallas.info(c).severidad,
+    };
+    return FallaHw(
+      codigo: c,
+      severidad: sev,
+      modulo: _s(v['modulo']) ?? Fallas.info(c).modulo,
+      detalle: _s(v['detalle']),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'codigo': codigo,
+        'severidad': severidad == Severidad.critica ? 'critica' : 'advertencia',
+        if (modulo != null) 'modulo': modulo,
+        if (detalle != null) 'detalle': detalle,
+      };
+}
+
 /// {"rele":false, "led":[0,255,0], "buzzer":"silencio"|"sonando",
-///  "sensor":"OK", "modulos":{"XN03":true,"XN13":true,"XN44":true}}
+///  "sensor":"OK", "modulos":{"XN03":true,"XN13":true,"XN44":true},
+///  "fallas":[{"codigo":"...","severidad":"critica","modulo":"XN13"}]}
 class HardwareEstado {
   final bool? rele;
   final List<int>? led; // [r, g, b]
   final String? buzzer;
   final SensorEstado? sensor;
   final Map<String, bool>? modulos;
+  final List<FallaHw> fallas; // vacía = sin fallas
 
-  const HardwareEstado({this.rele, this.led, this.buzzer, this.sensor, this.modulos});
+  const HardwareEstado({
+    this.rele,
+    this.led,
+    this.buzzer,
+    this.sensor,
+    this.modulos,
+    this.fallas = const [],
+  });
+
+  bool get hayCriticas => fallas.any((f) => f.critica);
+  bool tieneFalla(String codigo) => fallas.any((f) => f.codigo == codigo);
+  /// Fallas que afectan a un módulo (XN13, PH, …).
+  List<FallaHw> fallasDe(String modulo) =>
+      fallas.where((f) => f.modulo == modulo).toList();
 
   bool get buzzerSonando => buzzer?.toLowerCase() == 'sonando';
 
@@ -311,6 +379,12 @@ class HardwareEstado {
       modulos: mods is Map
           ? {for (final e in mods.entries) e.key.toString(): _b(e.value) ?? false}
           : null,
+      fallas: m['fallas'] is List
+          ? (m['fallas'] as List)
+              .map(FallaHw.fromJson)
+              .whereType<FallaHw>()
+              .toList()
+          : const [],
     );
   }
 
@@ -320,5 +394,6 @@ class HardwareEstado {
         if (buzzer != null) 'buzzer': buzzer,
         if (sensor != null) 'sensor': sensorWire(sensor!),
         if (modulos != null) 'modulos': modulos,
+        'fallas': fallas.map((f) => f.toMap()).toList(),
       };
 }

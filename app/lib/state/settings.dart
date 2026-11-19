@@ -8,7 +8,8 @@ enum ModoUmbral { ph, eficacia }
 
 /// Preferencias persistentes (SharedPreferences).
 class Settings {
-  FuenteDatos fuente = FuenteDatos.simulador;
+  FuenteDatos fuente =
+      DeviceConst.mqttHabilitado ? FuenteDatos.mqtt : FuenteDatos.simulador;
   String mqttHost = DeviceConst.mqttHostPorDefecto;
   int mqttPort = DeviceConst.mqttPuertoPorDefecto;
   String mqttRuta = DeviceConst.mqttRutaPorDefecto;
@@ -32,9 +33,21 @@ class Settings {
 
   static const _p = 'cfg.';
 
+  /// Sube este número cuando cambien los valores por defecto de conexión,
+  /// para que se apliquen aunque ya hubiera ajustes guardados.
+  static const _versionConexion = 2;
+
   void load(SharedPreferences prefs) {
+    if ((prefs.getInt('${_p}versionConexion') ?? 1) < _versionConexion) {
+      // Migración: aplica los nuevos valores por defecto de conexión.
+      prefs.remove('${_p}fuente');
+      prefs.remove('${_p}mqttHost');
+      prefs.remove('${_p}mqttPort');
+      prefs.remove('${_p}mqttRuta');
+      prefs.setInt('${_p}versionConexion', _versionConexion);
+    }
     fuente = FuenteDatos.values.byName(
-        prefs.getString('${_p}fuente') ?? FuenteDatos.simulador.name);
+        prefs.getString('${_p}fuente') ?? fuente.name);
     mqttHost = prefs.getString('${_p}mqttHost') ?? mqttHost;
     mqttPort = prefs.getInt('${_p}mqttPort') ?? mqttPort;
     mqttRuta = prefs.getString('${_p}mqttRuta') ?? mqttRuta;

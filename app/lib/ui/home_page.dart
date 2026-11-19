@@ -13,6 +13,7 @@ import 'format.dart';
 import 'vista_estado.dart';
 import 'widgets/bomba_indicador.dart';
 import 'widgets/common.dart';
+import 'widgets/fallas_card.dart';
 import 'widgets/ph_gauge.dart';
 
 class HomePage extends StatelessWidget {
@@ -25,6 +26,10 @@ class HomePage extends StatelessWidget {
       final ancho = c.maxWidth >= 900;
       final principal = _Principal(gaugeSize: ancho ? 320 : 260);
       final extra = <Widget>[
+        if (s.esTecnico && s.fallas.isNotEmpty) ...[
+          FallasCard(fallas: s.fallas),
+          const SizedBox(height: 16),
+        ],
         if (s.esTecnico) ...[
           const _PanelControlador(),
           const SizedBox(height: 16),
@@ -95,6 +100,14 @@ class _Principal extends StatelessWidget {
           color: v.punto == Palette.sinDatos ? Palette.sinDatos : Palette.error,
           icon: Icons.info_outline,
           text: v.queHacer!,
+        ),
+      ],
+      if (!tecnico && s.hayFallasCriticas) ...[
+        const SizedBox(height: 12),
+        const AvisoLinea(
+          color: Palette.sinDatos,
+          icon: Icons.build_circle_outlined,
+          text: 'El equipo reporta una falla; el operador fue notificado.',
         ),
       ],
       const SizedBox(height: 16),

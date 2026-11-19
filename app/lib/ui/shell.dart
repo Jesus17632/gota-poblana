@@ -56,6 +56,7 @@ class _ShellState extends State<Shell> {
       TipoAviso.error => (Palette.error, Icons.error),
       TipoAviso.fueraNorma => (Palette.error, Icons.warning_rounded),
       TipoAviso.rechazo => (Palette.error, Icons.block),
+      TipoAviso.advertencia => (Palette.precaucion, Icons.warning_amber_rounded),
       TipoAviso.info => (Palette.texto, Icons.info),
     };
     final m = ScaffoldMessenger.of(context);

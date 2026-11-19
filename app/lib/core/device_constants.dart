@@ -8,13 +8,18 @@ class DeviceConst {
   DeviceConst._();
 
   // ---------------- MQTT ----------------
-  /// Interruptor general. Mientras el firmware no exista, la app NO intenta
-  /// conectarse. Cámbialo a true cuando el ESP32 publique en el broker.
-  static const bool mqttHabilitado = false;
+  /// Interruptor general de MQTT. En false la app no intenta conectarse.
+  static const bool mqttHabilitado = true;
 
-  static const String mqttHostPorDefecto = '192.168.1.10';
-  static const int mqttPuertoPorDefecto = 9001; // listener WebSocket
-  static const String mqttRutaPorDefecto = '/mqtt';
+  /// El ESP32 levanta el broker MQTT sobre WebSocket en la misma red.
+  /// (El puerto 80 queda para el servidor HTTP del ESP32.)
+  /// Se pueden cambiar desde la app: Ajustes → Fuente de datos.
+  static const String mqttHostPorDefecto = '172.20.10.9';
+  static const int mqttPuertoPorDefecto = 81;
+  static const String mqttRutaPorDefecto = '/';
+
+  /// Reintento de conexión si el ESP32 no está disponible.
+  static const Duration mqttReintento = Duration(seconds: 5);
   static const String nodoPorDefecto = 'nodo1';
 
   static const String temaBase = 'agua';

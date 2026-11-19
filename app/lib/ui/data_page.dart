@@ -347,9 +347,9 @@ class _Registro extends StatelessWidget {
 
   static Color _color(String tipo) => switch (tipo) {
         'INICIO' || 'RELE_ON' => Palette.dosificando,
-        'FIN' || 'ACK' => Palette.normal,
+        'FIN' || 'ACK' || 'FALLA RESUELTA' => Palette.normal,
         'RECHAZO' || 'ERROR' || 'SIN RESPUESTA' || 'ERROR ENVÍO' ||
-        'FUERA_NORMA' =>
+        'FUERA_NORMA' || 'FALLA' =>
           Palette.error,
         'BUZZER' || 'LED' => Palette.mezclando,
         _ => Palette.sinDatos,
