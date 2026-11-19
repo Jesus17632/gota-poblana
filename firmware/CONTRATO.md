@@ -1,7 +1,7 @@
 # Contrato firmware ↔ app (para el encargado del firmware)
 
 Todo lo que necesitas para que la app funcione con el ESP32-S3 (XC01).
-Los nombres están en **`agua_contrato.h`**: cópialo junto a tu `.ino` y usa sus
+Los nombres están en **`src/agua_contrato.h`** (proyecto PlatformIO; `src/main.cpp` ya lo incluye) y usa sus
 constantes en lugar de escribir los textos a mano. La app ya está programada
 con estos nombres; si cambias uno, deja de funcionar.
 

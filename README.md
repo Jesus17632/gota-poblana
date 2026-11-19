@@ -7,7 +7,7 @@ en seguridad** y puede rechazarlas.
 
 ```
 app/        App Flutter (Android, Linux, web)
-firmware/   Firmware del ESP32
+firmware/   Firmware del ESP32 (PlatformIO: src/main.cpp)
 ```
 
 ## Correr la app
@@ -40,7 +40,7 @@ a ver en Ajustes → Nodo y ayuda. Tema claro, oscuro o del sistema en Ajustes �
 MQTT está **activo por defecto**. El ESP32 hace de broker MQTT sobre WebSocket
 en la misma red. El contrato para el firmware está en
 [`firmware/CONTRATO.md`](firmware/CONTRATO.md) y los nombres listos para el `.ino`
-en [`firmware/agua_contrato.h`](firmware/agua_contrato.h).
+en [`firmware/src/agua_contrato.h`](firmware/src/agua_contrato.h).
 
 - Valores por defecto: host `172.20.10.9`, puerto `81`, ruta `/`, nodo `nodo1`
   (en `app/lib/core/device_constants.dart`).
