@@ -7,9 +7,10 @@ import '../../core/ph_colors.dart';
 import '../app_scope.dart';
 import '../tokens.dart';
 
-/// Indicador principal: una PECERA. El agua tiene el color del indicador
-/// universal del pH actual, con olas y burbujas animadas. El borde de vidrio
-/// lleva el color de ESTADO (paleta). Con movimiento reducido queda quieta.
+/// Indicador principal: una PECERA. Toda la bola sigue el color del
+/// indicador universal del pH actual: agua, vidrio teñido y borde. Solo cambia
+/// a rojo si el equipo reporta un error, y a gris sin datos o con falla de
+/// sensor. Con movimiento reducido queda quieta.
 class PhGauge extends StatefulWidget {
   const PhGauge({
     super.key,
@@ -26,7 +27,7 @@ class PhGauge extends StatefulWidget {
   });
 
   final double? ph;
-  final Color vidrio; // color de estado (borde)
+  final Color vidrio; // ya no se usa para el color: la bola sigue al pH
   final bool aguaConColor; // false → agua gris (sin datos / falla de sensor)
   final bool atenuado; // datos viejos
   final bool error; // velo rojo + acción
@@ -89,8 +90,13 @@ class _PhGaugeState extends State<PhGauge> with SingleTickerProviderStateMixin {
                 painter: _PeceraPainter(
                   t: _olas.value,
                   agua: agua,
-                  vidrio: widget.vidrio,
-                  fondoVidrio: c.superficie2,
+                  // Borde: el mismo color del pH, más profundo (rojo si hay error).
+                  vidrio: widget.error
+                      ? Palette.error
+                      : Color.lerp(agua, Palette.tinta, c.oscuro ? 0.05 : 0.18)!,
+                  // Parte sin agua: el color del pH muy suave, como vidrio teñido.
+                  fondoVidrio: Color.lerp(agua, c.oscuro ? c.superficie2 : Palette.blanco,
+                      c.oscuro ? 0.7 : 0.72)!,
                   error: widget.error,
                   oscuro: c.oscuro,
                 ),
@@ -189,7 +195,7 @@ class _PeceraPainter extends CustomPainter {
   final bool error;
   final bool oscuro;
 
-  static const _nivel = 0.66; // fracción del diámetro con agua
+  static const _nivel = 0.78; // fracción del diámetro con agua
   static const _burbujas = [
     (0.30, 0.00, 0.020, 1.0),
     (0.46, 0.35, 0.014, 1.3),
