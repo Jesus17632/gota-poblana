@@ -417,6 +417,18 @@ class AppState extends ChangeNotifier {
 
   double get pHRecomendado => recommendedPh(temperatura.tempC);
 
+  /// Dispara inicio → fin → error por el MISMO camino que los eventos reales
+  /// (aviso visual + sonido + vibración, respetando los interruptores).
+  Future<void> probarAvisos() async {
+    const pausa = Duration(milliseconds: 1600);
+    _log('PRUEBA', 'Prueba de avisos');
+    _alerta(TipoAviso.inicio, 'Prueba: dosificación iniciada', Tono.inicio, true);
+    await Future.delayed(pausa);
+    _alerta(TipoAviso.fin, 'Prueba: objetivo alcanzado', Tono.fin, true);
+    await Future.delayed(pausa);
+    _alerta(TipoAviso.error, 'Prueba: aviso de error', Tono.error, true);
+  }
+
   // ---------- Simulador (desarrollo) ----------
 
   SimuladorESP32? get _sim =>

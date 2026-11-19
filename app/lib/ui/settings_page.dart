@@ -180,6 +180,12 @@ class _Avisos extends StatelessWidget {
           valor: cfg.vibracion,
           onChanged: (v) => set(() => cfg.vibracion = v),
         ),
+        _Fila(
+          icon: Icons.campaign_outlined,
+          titulo: 'Probar avisos',
+          valor: 'inicio · fin · error',
+          onTap: s.probarAvisos,
+        ),
       ]),
     );
   }
