@@ -1,10 +1,12 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../core/device_constants.dart';
 import '../core/palette.dart';
 import '../data/data_source.dart';
 import '../state/app_state.dart';
 import '../state/settings.dart';
 import 'app_scope.dart';
+import 'devices_panel.dart';
 import 'format.dart';
 import 'widgets/common.dart';
 
@@ -57,6 +59,19 @@ class SettingsPage extends StatelessWidget {
                 : null,
             valor: cfg.movimientoReducido,
             onChanged: (v) => set(() => cfg.movimientoReducido = v),
+          ),
+          _Interruptor(
+            icon: Icons.volume_up_outlined,
+            titulo: 'Sonidos',
+            subtitulo: 'Tonos de inicio, fin y error',
+            valor: cfg.sonidos,
+            onChanged: (v) => set(() => cfg.sonidos = v),
+          ),
+          _Interruptor(
+            icon: Icons.vibration,
+            titulo: 'Vibración',
+            valor: cfg.vibracion,
+            onChanged: (v) => set(() => cfg.vibracion = v),
           ),
         ]),
       ),
@@ -128,6 +143,17 @@ class _Tecnico extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (cfg.fuente == FuenteDatos.mqtt) ...[
+            if (!DeviceConst.mqttHabilitado)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: AvisoLinea(
+                  color: Palette.precaucion,
+                  icon: Icons.info_outline,
+                  text: 'MQTT está desactivado en esta versión (el firmware '
+                      'aún no existe). Configura los datos y actívalo en '
+                      'device_constants.dart.',
+                ),
+              ),
             _Fila(
               icon: Icons.dns_outlined,
               titulo: 'Host',
@@ -155,6 +181,21 @@ class _Tecnico extends StatelessWidget {
                 final p = int.tryParse(v ?? '');
                 if (p != null && p > 0 && p < 65536) {
                   cfg.mqttPort = p;
+                  s.reconectar();
+                }
+              },
+            ),
+            _Fila(
+              icon: Icons.route_outlined,
+              titulo: 'Ruta WebSocket',
+              valor: cfg.mqttRuta.isEmpty ? '/' : cfg.mqttRuta,
+              onTap: () async {
+                final v = await _pedirTexto(context,
+                    titulo: 'Ruta WebSocket',
+                    inicial: cfg.mqttRuta,
+                    ayuda: 'Ej. /mqtt (vacío = raíz)');
+                if (v != null) {
+                  cfg.mqttRuta = v.trim();
                   s.reconectar();
                 }
               },
@@ -191,6 +232,8 @@ class _Tecnico extends StatelessWidget {
         ]),
       ),
       const SizedBox(height: 16),
+      const DevicesPanel(),
+      const SizedBox(height: 16),
       SectionCard(
         title: 'Temperatura y objetivo',
         child: Column(children: [
@@ -205,7 +248,13 @@ class _Tecnico extends StatelessWidget {
           ),
           _Fila(
             icon: Icons.thermostat,
-            titulo: 'Temperatura del agua',
+            titulo: 'Temperatura en uso',
+            valor: '${s.temperatura.tempC.toStringAsFixed(1)} °C'
+                '${s.temperatura.supuesta ? ' (supuesta)' : ' (sensor)'}',
+          ),
+          _Fila(
+            icon: Icons.edit_outlined,
+            titulo: 'Temperatura capturada',
             valor: '${cfg.tempAguaC.toStringAsFixed(1)} °C',
             onTap: () async {
               final v = await _pedirTexto(context,

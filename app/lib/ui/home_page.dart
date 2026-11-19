@@ -4,12 +4,14 @@ import 'package:material_ui/material_ui.dart';
 
 import '../core/chem.dart';
 import '../core/palette.dart';
+import '../data/data_source.dart';
 import '../data/models.dart';
 import '../state/app_state.dart';
 import '../state/settings.dart';
 import 'app_scope.dart';
 import 'format.dart';
 import 'vista_estado.dart';
+import 'widgets/bomba_indicador.dart';
 import 'widgets/common.dart';
 import 'widgets/ph_gauge.dart';
 
@@ -146,6 +148,7 @@ class _PanelControlador extends StatelessWidget {
 
     return SectionCard(
       title: 'Controlador',
+      trailing: BombaIndicador(encendida: s.rele),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
@@ -237,12 +240,14 @@ class _PanelObjetivoState extends State<_PanelObjetivo> {
         ? eficacia.yaSeCumple
         : (phActual != null && phActual <= umbral);
     final recomendado = s.pHRecomendado;
+    final enviando = _enviando || s.enviando(Cmd.dosificar);
     final puede = !s.dosificando &&
+        !s.rele &&
         !s.sinConexion &&
         s.sensorOk &&
         !s.datosViejos &&
         !yaSeCumple &&
-        !_enviando;
+        !enviando;
 
     return SectionCard(
       title: 'Objetivo',
@@ -326,8 +331,16 @@ class _PanelObjetivoState extends State<_PanelObjetivo> {
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: puede ? () => _confirmar(umbral) : null,
-            icon: const Icon(Icons.water_drop),
-            label: Text('Dosificar hasta pH ${umbral.toStringAsFixed(2)}'),
+            icon: enviando
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.water_drop),
+            label: Text(enviando
+                ? 'Enviando…'
+                : 'Dosificar hasta pH ${umbral.toStringAsFixed(2)}'),
           ),
         ),
       ]),
@@ -344,7 +357,7 @@ class _PanelObjetivoState extends State<_PanelObjetivo> {
           'pH actual: ${fmtPh(s.ultimo?.ph)}\n'
           'Umbral: ${umbral.toStringAsFixed(2)}\n\n'
           'La bomba agregará solución ácida en pulsos hasta llegar al umbral. '
-          'El equipo puede rechazar la orden.',
+          'El equipo valida la orden y puede rechazarla.',
         ),
         actions: [
           TextButton(
@@ -467,8 +480,16 @@ class BarraDetener extends StatelessWidget {
       ),
       child: Row(children: [
         Expanded(
-            child: StatusDot(
-                color: ctrl.color, text: ctrl.texto, icon: ctrl.icono)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              StatusDot(color: ctrl.color, text: ctrl.texto, icon: ctrl.icono),
+              const SizedBox(height: 6),
+              BombaIndicador(encendida: s.rele),
+            ],
+          ),
+        ),
         const SizedBox(width: 12),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -481,7 +502,9 @@ class BarraDetener extends StatelessWidget {
             } catch (_) {}
           },
           icon: const Icon(Icons.stop_circle, size: 26),
-          label: const Text('Detener', style: TextStyle(fontSize: 18)),
+          // Sigue activo aunque haya un envío en curso: detener se puede repetir.
+          label: Text(s.enviando(Cmd.detener) ? 'Enviando…' : 'Detener',
+              style: const TextStyle(fontSize: 18)),
         ),
       ]),
     );
@@ -489,5 +512,7 @@ class BarraDetener extends StatelessWidget {
 }
 
 /// Utilidad para Data/Settings: ¿mostrar barra de detener?
+/// Visible mientras el relé esté encendido o el estado ≠ IDLE.
 bool mostrarDetener(AppState s) =>
-    s.esTecnico && s.hayDatos && s.estadoCtrl != CtrlEstado.idle;
+    s.esTecnico &&
+    (s.rele || (s.hayDatos && s.estadoCtrl != CtrlEstado.idle));

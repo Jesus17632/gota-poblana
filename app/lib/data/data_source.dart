@@ -1,21 +1,28 @@
-// Interfaz única de la capa de datos. La UI y el estado de la app solo
-// hablan con esto; Simulador y MQTT son intercambiables.
+// Servicio de dispositivos: interfaz única. La UI y AppState solo hablan con
+// esto; SimuladorESP32 y MqttSource son intercambiables.
+// La app NUNCA toca pines ni I2C: solo manda órdenes de alto nivel y refleja
+// lo que el ESP32 reporta.
+import '../core/device_constants.dart';
 import 'models.dart';
 
 enum ConexionEstado { desconectado, conectando, conectado, error }
 
 abstract class DataSource {
-  /// Lecturas/estado del equipo (puede llegar varias veces por segundo).
+  /// agua/<nodo>/telemetria (+ ph + estado combinados).
   Stream<Telemetria> get telemetria;
 
-  /// Cambios de conexión.
+  /// agua/<nodo>/evento
+  Stream<EventoDispositivo> get eventos;
+
+  /// agua/<nodo>/hardware
+  Stream<HardwareEstado> get hardware;
+
   Stream<ConexionEstado> get conexion;
-
-  /// Último mensaje de error de conexión, si hubo.
   String? get errorConexion;
-
-  /// Nombre para mostrar ("Simulador", "MQTT ws://…").
   String get descripcion;
+
+  /// true mientras sea el simulador (la UI muestra "MODO SIMULADO").
+  bool get simulado;
 
   Future<void> start();
   Future<void> stop();
@@ -23,15 +30,20 @@ abstract class DataSource {
   /// app→ESP: umbral de pH (4.5–7.0). El firmware puede rechazarlo.
   Future<void> enviarUmbral(double ph);
 
-  /// app→ESP: "dosificar" | "detener" | "c <pH>" | "a 100"
+  /// app→ESP: ver [Cmd].
   Future<void> enviarCmd(String cmd);
 }
 
-/// Comandos del contrato con el firmware.
+/// Comandos del contrato (tema cmd).
 class Cmd {
   Cmd._();
-  static const dosificar = 'dosificar';
-  static const detener = 'detener';
-  static String calibrar(double phRef) => 'c ${phRef.toStringAsFixed(2)}';
-  static String rellenarAcido(int ml) => 'a $ml';
+  static const dosificar = DeviceConst.cmdDosificar;
+  static const detener = DeviceConst.cmdDetener;
+  static String pulso(int ms) => '${DeviceConst.cmdPulso} $ms';
+  static String calibrar(double phRef) =>
+      '${DeviceConst.cmdCalibrar} ${phRef.toStringAsFixed(2)}';
+  static String rellenarAcido(int ml) => '${DeviceConst.cmdAcido} $ml';
+  static String testBuzzer(String tipo) => '${DeviceConst.cmdTestBuzzer} $tipo';
+  static String testLed(int r, int g, int b) =>
+      '${DeviceConst.cmdTestLed} $r $g $b';
 }

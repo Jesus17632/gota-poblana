@@ -21,7 +21,6 @@ class SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: padding,
       decoration: BoxDecoration(
         color: Palette.tarjeta,
         borderRadius: BorderRadius.circular(24),
@@ -33,7 +32,14 @@ class SectionCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      // Material transparente: las filas tocables muestran el efecto al tocar.
+      child: Material(
+        type: MaterialType.transparency,
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: padding,
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (title != null) ...[
@@ -51,6 +57,8 @@ class SectionCard extends StatelessWidget {
           ],
           child,
         ],
+          ),
+        ),
       ),
     );
   }

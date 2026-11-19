@@ -1,5 +1,6 @@
 // Estado central de la app. La UI lo escucha; nunca habla con la fuente
-// de datos directamente.
+// de datos directamente. Regla: la app NO da por hecho que algo ocurrió;
+// solo refleja los eventos y el estado que reporta el ESP32 (o el simulador).
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -8,10 +9,12 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/chem.dart';
+import '../core/device_constants.dart';
 import '../data/data_source.dart';
 import '../data/models.dart';
 import '../data/mqtt_source.dart';
-import '../data/simulator_source.dart';
+import '../data/simulador_esp32.dart';
+import '../services/sonidos.dart';
 import 'settings.dart';
 
 enum TipoAviso { inicio, fin, error, fueraNorma, rechazo, info }
@@ -22,33 +25,38 @@ class Aviso {
   const Aviso(this.tipo, this.mensaje);
 }
 
+/// Entrada del "Registro de eventos" (vista técnico).
+class RegistroItem {
+  final DateTime t;
+  final String tipo; // INICIO, FIN, RECHAZO, ..., "→ ORDEN", "SIN RESPUESTA"
+  final String detalle;
+  const RegistroItem(this.t, this.tipo, this.detalle);
+}
+
 enum Rol { ciudadano, tecnico }
 
 class AppState extends ChangeNotifier {
-  AppState(this._prefs) {
+  AppState(this._prefs, {Sonidos? sonidos}) : _sonidos = sonidos ?? Sonidos() {
     settings.load(_prefs);
     _cargarHistorial();
   }
 
   final SharedPreferences _prefs;
+  final Sonidos _sonidos;
   final Settings settings = Settings();
 
-  // Refresco de pantalla a 2 Hz aunque lleguen más lecturas.
-  static const _uiTick = Duration(milliseconds: 500);
-  // Una lectura al historial cada 2 s (los eventos se guardan siempre).
+  static const _uiTick = Duration(milliseconds: 500); // refresco a 2 Hz
   static const _cadaLectura = Duration(seconds: 2);
-  // Pasada 1 h, el historial se compacta a una lectura por minuto.
   static const _detalleReciente = Duration(hours: 1);
   static const _retencion = Duration(days: 7);
+  static const _maxRegistro = 300;
   static const _kHist = 'historial.v1';
   static const _kSes = 'sesiones.v1';
 
   DataSource? _source;
-  StreamSubscription? _subTele;
-  StreamSubscription? _subCon;
+  final List<StreamSubscription> _subs = [];
   Timer? _uiTimer;
   Timer? _saveTimer;
-  Timer? _rechazoTimer;
   bool _disposed = false;
 
   Rol rol = Rol.ciudadano;
@@ -57,23 +65,34 @@ class AppState extends ChangeNotifier {
   ConexionEstado conexion = ConexionEstado.desconectado;
   String? get errorConexion => _source?.errorConexion;
   String get fuenteDescripcion => _source?.descripcion ?? '—';
+  bool get simulado => _source?.simulado ?? false;
 
   Telemetria? ultimo;
-  DateTime? recibido; // hora local de la última lectura
+  DateTime? recibido;
+  HardwareEstado? hw;
+  DateTime? hwRecibido;
+  bool rele = false; // último estado reportado del relé
   DateTime get ahora => DateTime.now();
 
   final List<Lectura> historial = [];
   final List<Resumen> sesiones = [];
-  DateTime? inicioSesion; // última vez que arrancó una dosificación
+  final List<RegistroItem> registro = []; // más reciente primero
+  DateTime? inicioSesion;
   DateTime? finSesion;
   DateTime? ultimaAlerta;
 
   final _avisos = StreamController<Aviso>.broadcast();
   Stream<Aviso> get avisos => _avisos.stream;
 
+  /// Órdenes enviadas que aún no tienen respuesta del dispositivo.
+  final Map<String, Timer> _pendientes = {};
+  bool enviando(String cmd) => _pendientes.containsKey(cmd);
+  bool get hayPendientes => _pendientes.isNotEmpty;
+
   DateTime? _ultimaGuardada;
   String? _ultimoResumen;
   bool? _enNormaPrevio;
+  String? _marcador; // evento a guardar con la siguiente lectura
 
   // ---------- Ciclo de vida ----------
 
@@ -85,30 +104,43 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _conectarFuente() async {
-    await _subTele?.cancel();
-    await _subCon?.cancel();
+    for (final s in _subs) {
+      await s.cancel();
+    }
+    _subs.clear();
+    for (final t in _pendientes.values) {
+      t.cancel();
+    }
+    _pendientes.clear();
     await _source?.stop();
+
     final src = settings.fuente == FuenteDatos.simulador
-        ? SimulatorSource(nodo: settings.nodo)
+        ? SimuladorESP32(nodo: settings.nodo)
         : MqttSource(
             host: settings.mqttHost,
             port: settings.mqttPort,
+            ruta: settings.mqttRuta,
             nodo: settings.nodo,
           );
     _source = src;
-    _subCon = src.conexion.listen((c) {
-      conexion = c;
-      _notificar();
-    });
-    _subTele = src.telemetria.listen(_onTelemetria);
+    _subs.addAll([
+      src.conexion.listen((c) {
+        conexion = c;
+        _notificar();
+      }),
+      src.telemetria.listen(_onTelemetria),
+      src.eventos.listen(_onEvento),
+      src.hardware.listen(_onHardware),
+    ]);
     await src.start();
   }
 
-  /// Llamar después de cambiar fuente/host/puerto/nodo.
   Future<void> reconectar() async {
     await guardarSettings();
     ultimo = null;
     recibido = null;
+    hw = null;
+    rele = false;
     await _conectarFuente();
   }
 
@@ -126,63 +158,36 @@ class AppState extends ChangeNotifier {
     _disposed = true;
     _uiTimer?.cancel();
     _saveTimer?.cancel();
-    _rechazoTimer?.cancel();
-    _subTele?.cancel();
-    _subCon?.cancel();
+    for (final t in _pendientes.values) {
+      t.cancel();
+    }
+    for (final s in _subs) {
+      s.cancel();
+    }
     _source?.stop();
+    _sonidos.dispose();
     _guardarHistorial();
     _avisos.close();
     super.dispose();
   }
 
-  // ---------- Entrada de datos ----------
+  // ---------- Entrada: telemetría ----------
 
   void _onTelemetria(Telemetria t) {
     final previo = ultimo;
     final now = DateTime.now();
     ultimo = t;
     recibido = now;
+    if (t.bomba != null) rele = t.bomba!;
 
-    final estPrev = previo?.estado ?? CtrlEstado.idle;
-    final est = t.estado ?? CtrlEstado.idle;
-    final activoPrev =
-        estPrev == CtrlEstado.pulso || estPrev == CtrlEstado.mezcla;
-    final activo = est == CtrlEstado.pulso || est == CtrlEstado.mezcla;
-
-    String? evento;
-    if (!activoPrev && activo) {
-      evento = 'inicio';
-      inicioSesion = now;
-      finSesion = null;
-      _rechazoTimer?.cancel();
-      if (settings.notifInicio) {
-        _avisar(TipoAviso.inicio, 'Inició la dosificación');
-      }
-    } else if (activoPrev && !activo && est != CtrlEstado.error) {
-      evento = 'fin';
-      finSesion = now;
-      if (settings.notifFin) {
-        _avisar(TipoAviso.fin, 'Terminó la dosificación');
-      }
-    } else if (est == CtrlEstado.pulso && estPrev != CtrlEstado.pulso) {
-      evento = 'pulso';
-    }
-
-    if (est == CtrlEstado.error && estPrev != CtrlEstado.error) {
-      if (activoPrev) finSesion = now;
-      _rechazoTimer?.cancel();
-      if (settings.notifError) {
-        _avisar(TipoAviso.error, 'Error: ${t.errorMsg ?? 'sin detalle'}');
-      }
-    }
-
-    // Fuera de norma (solo cuenta con sensor OK)
     final sensorOk = (t.sensor ?? SensorEstado.ok) == SensorEstado.ok;
     if (sensorOk) {
       final enNorma = nomStatus(t.ph) == NomStatus.enRango;
       if (!enNorma) ultimaAlerta = now;
       if (_enNormaPrevio == true && !enNorma) {
-        final quiere = esTecnico ? settings.notifFueraNorma : settings.notifAlertas;
+        final quiere =
+            esTecnico ? settings.notifFueraNorma : settings.notifAlertas;
+        _log('FUERA_NORMA', 'pH ${t.ph.toStringAsFixed(2)}');
         if (quiere) {
           _avisar(TipoAviso.fueraNorma,
               'pH ${t.ph.toStringAsFixed(2)} fuera del rango de la norma');
@@ -191,7 +196,6 @@ class AppState extends ChangeNotifier {
       _enNormaPrevio = enNorma;
     }
 
-    // Resumen de sesión nuevo
     final r = t.resumen;
     if (r != null && r.clave != _ultimoResumen) {
       if (_ultimoResumen != null || previo != null) {
@@ -200,37 +204,139 @@ class AppState extends ChangeNotifier {
       _ultimoResumen = r.clave;
     }
 
-    // Historial
-    if (evento != null ||
-        _ultimaGuardada == null ||
-        now.difference(_ultimaGuardada!) >= _cadaLectura) {
-      if (sensorOk) {
-        historial.add(Lectura(
-          t: now,
-          ph: t.ph,
-          hoclPct: hoclActual,
-          evento: evento,
-        ));
-        _ultimaGuardada = now;
-      }
+    final marcador = _marcador;
+    if (sensorOk &&
+        (marcador != null ||
+            _ultimaGuardada == null ||
+            now.difference(_ultimaGuardada!) >= _cadaLectura)) {
+      historial.add(Lectura(
+          t: now, ph: t.ph, hoclPct: hoclActual, evento: marcador));
+      _ultimaGuardada = now;
+      _marcador = null;
     }
-    // La pantalla se actualiza con el timer de 2 Hz, no aquí.
+  }
+
+  void _onHardware(HardwareEstado h) {
+    hw = h;
+    hwRecibido = DateTime.now();
+    if (h.rele != null) rele = h.rele!;
+  }
+
+  // ---------- Entrada: eventos ----------
+
+  void _onEvento(EventoDispositivo e) {
+    _resolverPendiente(e);
+    final detalle = e.detalle ?? '';
+    _log(tipoEventoWire(e.tipo), [
+      if (detalle.isNotEmpty) detalle,
+      if (e.cmd != null) '(${e.cmd})',
+    ].join(' '));
+
+    final now = DateTime.now();
+    switch (e.tipo) {
+      case TipoEvento.inicio:
+        inicioSesion = now;
+        finSesion = null;
+        _marcador = 'inicio';
+        _alerta(TipoAviso.inicio, 'Dosificación iniciada', Tono.inicio,
+            settings.notifInicio);
+      case TipoEvento.fin:
+        finSesion = now;
+        _marcador = 'fin';
+        _alerta(TipoAviso.fin, _textoFin(e), Tono.fin, settings.notifFin);
+      case TipoEvento.rechazo:
+        _alerta(TipoAviso.rechazo,
+            'Rechazado: ${detalle.isEmpty ? 'sin motivo' : detalle}',
+            Tono.error, true);
+      case TipoEvento.error:
+        if (inicioSesion != null && finSesion == null) finSesion = now;
+        _alerta(TipoAviso.error,
+            'Error: ${detalle.isEmpty ? 'sin detalle' : detalle}',
+            Tono.error, settings.notifError);
+      case TipoEvento.releOn:
+        rele = true;
+        if (inicioSesion != null && finSesion == null) _marcador = 'pulso';
+      case TipoEvento.releOff:
+        rele = false;
+      case TipoEvento.buzzer:
+        // En modo simulado, el "buzzer" suena en la app.
+        final tono = tonoDe(e.detalle);
+        if (simulado && tono != null && settings.sonidos) _sonidos.tocar(tono);
+      case TipoEvento.led:
+        break;
+      case TipoEvento.ack:
+        if (e.cmd == Cmd.detener) {
+          if (inicioSesion != null && finSesion == null) {
+            finSesion = now;
+            _marcador = 'fin';
+          }
+          _avisar(TipoAviso.info, detalle.isEmpty ? 'Bomba detenida' : detalle);
+        } else if (detalle.isNotEmpty) {
+          _avisar(TipoAviso.info, detalle);
+        }
+    }
+    _notificar();
+  }
+
+  String _textoFin(EventoDispositivo e) {
+    final r = ultimo?.resumen;
+    if (r?.phFinal != null && r?.error != null) {
+      return 'Objetivo alcanzado: pH ${r!.phFinal!.toStringAsFixed(2)} '
+          '(error ±${r.error!.abs().toStringAsFixed(2)})';
+    }
+    return (e.detalle?.isNotEmpty ?? false) ? e.detalle! : 'Objetivo alcanzado';
+  }
+
+  void _alerta(TipoAviso tipo, String msg, Tono tono, bool visible) {
+    if (visible) _avisar(tipo, msg);
+    if (settings.sonidos) _sonidos.tocar(tono);
+    if (settings.vibracion) _sonidos.vibrar(tono);
   }
 
   void _avisar(TipoAviso tipo, String msg) {
     if (!_avisos.isClosed) _avisos.add(Aviso(tipo, msg));
   }
 
+  void _log(String tipo, String detalle) {
+    registro.insert(0, RegistroItem(DateTime.now(), tipo, detalle));
+    if (registro.length > _maxRegistro) registro.removeLast();
+  }
+
+  /// Respuesta a una orden: por "cmd" exacto, o la más antigua pendiente si
+  /// el firmware no incluyó "cmd".
+  void _resolverPendiente(EventoDispositivo e) {
+    if (_pendientes.isEmpty) return;
+    const respuestas = {
+      TipoEvento.inicio,
+      TipoEvento.rechazo,
+      TipoEvento.ack,
+      TipoEvento.releOn,
+      TipoEvento.buzzer,
+      TipoEvento.led,
+      TipoEvento.error,
+    };
+    if (!respuestas.contains(e.tipo)) return;
+    final c = e.cmd?.trim();
+    final clave = (c != null && _pendientes.containsKey(c))
+        ? c
+        : (c == null ? _pendientes.keys.first : null);
+    if (clave != null) _pendientes.remove(clave)?.cancel();
+  }
+
   // ---------- Derivados ----------
 
   bool get hayDatos => ultimo != null && recibido != null;
   bool get sinConexion => conexion != ConexionEstado.conectado;
-  bool get datosViejos => recibido == null || isStale(recibido!, DateTime.now());
+  bool get datosViejos =>
+      recibido == null || isStale(recibido!, DateTime.now());
   bool get sensorOk =>
       ultimo != null && (ultimo!.sensor ?? SensorEstado.ok) == SensorEstado.ok;
   CtrlEstado get estadoCtrl => ultimo?.estado ?? CtrlEstado.idle;
   bool get dosificando =>
       estadoCtrl == CtrlEstado.pulso || estadoCtrl == CtrlEstado.mezcla;
+
+  /// El XC01 está en línea si hay conexión y datos frescos.
+  bool get xc01EnLinea => !sinConexion && !datosViejos;
 
   ({double tempC, bool supuesta}) get temperatura => temperaturaEfectiva(
         sensorC: ultimo?.tempC,
@@ -239,7 +345,6 @@ class AppState extends ChangeNotifier {
         usarSensor: settings.usarSensorTemp,
       );
 
-  /// % HOCl: el del firmware si lo manda; si no, calculado.
   double? get hoclActual {
     final t = ultimo;
     if (t == null) return null;
@@ -254,6 +359,22 @@ class AppState extends ChangeNotifier {
   String get nodo => ultimo?.nodo ?? settings.nodo;
 
   double get pHRecomendado => recommendedPh(temperatura.tempC);
+
+  // ---------- Simulador (desarrollo) ----------
+
+  SimuladorESP32? get _sim =>
+      _source is SimuladorESP32 ? _source as SimuladorESP32 : null;
+
+  double? get temperaturaSimulada => _sim?.temperaturaC;
+  set temperaturaSimulada(double? v) {
+    if (v != null) _sim?.temperaturaC = v;
+    _notificar();
+  }
+
+  void simularFallaSensor() {
+    _exigirTecnico();
+    _sim?.simularFallaSensor();
+  }
 
   // ---------- Roles ----------
 
@@ -272,58 +393,83 @@ class AppState extends ChangeNotifier {
   // ---------- Órdenes (solo técnico) ----------
 
   void _exigirTecnico() {
-    if (!esTecnico) throw StateError('Solo el técnico puede controlar la bomba');
+    if (!esTecnico) {
+      throw StateError('Solo el técnico puede enviar órdenes');
+    }
   }
 
-  Future<void> _enviar(Future<void> Function(DataSource s) f) async {
+  /// Envía y marca como pendiente hasta recibir el evento de respuesta.
+  Future<void> _orden(String cmd, {bool esperarRespuesta = true}) async {
     final s = _source;
     if (s == null) throw StateError('Sin fuente de datos');
+    _log('→ ORDEN', cmd);
+    if (esperarRespuesta) {
+      _pendientes.remove(cmd)?.cancel();
+      _pendientes[cmd] = Timer(DeviceConst.timeoutRespuesta, () {
+        if (_pendientes.remove(cmd) == null) return;
+        _log('SIN RESPUESTA', cmd);
+        _alerta(TipoAviso.error, 'Sin respuesta del dispositivo ($cmd)',
+            Tono.error, true);
+        _notificar();
+      });
+    }
+    _notificar();
     try {
-      await f(s);
+      await s.enviarCmd(cmd);
     } catch (e) {
-      _avisar(TipoAviso.error, 'No se pudo enviar: $e');
+      _pendientes.remove(cmd)?.cancel();
+      _log('ERROR ENVÍO', '$cmd: $e');
+      _alerta(TipoAviso.error, 'No se pudo enviar: $e', Tono.error, true);
+      _notificar();
       rethrow;
     }
   }
 
   Future<void> dosificar(double umbral) async {
     _exigirTecnico();
-    final u = roundToStep(umbral, 0.01).clamp(phMinUmbral, phMaxUmbral);
-    await _enviar((s) => s.enviarUmbral(u.toDouble()));
-    await _enviar((s) => s.enviarCmd(Cmd.dosificar));
-    // Si el equipo no arranca en 4 s, se considera rechazado.
-    _rechazoTimer?.cancel();
-    _rechazoTimer = Timer(const Duration(seconds: 4), () {
-      if (dosificando) return;
-      final t = ultimo;
-      String motivo;
-      if (t?.errorMsg != null && t!.errorMsg!.isNotEmpty) {
-        motivo = t.errorMsg!;
-      } else if (t != null && t.ph <= u) {
-        motivo = 'el pH ya está por debajo del umbral';
-      } else {
-        motivo = 'el equipo no respondió';
-      }
-      _avisar(TipoAviso.rechazo, 'El equipo rechazó la orden: $motivo');
-    });
+    final u = roundToStep(umbral, 0.01)
+        .clamp(DeviceConst.umbralMin, DeviceConst.umbralMax)
+        .toDouble();
+    final s = _source;
+    if (s == null) throw StateError('Sin fuente de datos');
+    try {
+      _log('→ UMBRAL', u.toStringAsFixed(2));
+      await s.enviarUmbral(u);
+    } catch (e) {
+      _alerta(TipoAviso.error, 'No se pudo enviar el umbral: $e', Tono.error, true);
+      rethrow;
+    }
+    await _orden(Cmd.dosificar);
   }
 
   Future<void> detener() async {
     _exigirTecnico();
-    _rechazoTimer?.cancel();
-    await _enviar((s) => s.enviarCmd(Cmd.detener));
+    await _orden(Cmd.detener);
   }
 
   Future<void> calibrar(double phRef) async {
     _exigirTecnico();
-    await _enviar((s) => s.enviarCmd(Cmd.calibrar(phRef)));
-    _avisar(TipoAviso.info, 'Calibración enviada (pH ${phRef.toStringAsFixed(2)})');
+    await _orden(Cmd.calibrar(phRef));
   }
 
   Future<void> rellenarAcido() async {
     _exigirTecnico();
-    await _enviar((s) => s.enviarCmd(Cmd.rellenarAcido(100)));
-    _avisar(TipoAviso.info, 'Ácido marcado como 100 mL');
+    await _orden(Cmd.rellenarAcido(DeviceConst.acidoInicialMl.round()));
+  }
+
+  Future<void> probarBomba([int ms = DeviceConst.pulsoPruebaMs]) async {
+    _exigirTecnico();
+    await _orden(Cmd.pulso(ms));
+  }
+
+  Future<void> probarBuzzer(String tipo) async {
+    _exigirTecnico();
+    await _orden(Cmd.testBuzzer(tipo));
+  }
+
+  Future<void> probarLed(int r, int g, int b) async {
+    _exigirTecnico();
+    await _orden(Cmd.testLed(r, g, b));
   }
 
   // ---------- Historial ----------
@@ -407,7 +553,6 @@ class AppState extends ChangeNotifier {
     return b.toString();
   }
 
-  /// Para gráficos: rango Y que siempre incluye la banda de la norma.
   static ({double min, double max}) rangoPh(Iterable<Lectura> ls,
       {double? umbral}) {
     var lo = nomMin, hi = nomMax;

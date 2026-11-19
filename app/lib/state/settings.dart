@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/device_constants.dart';
+
 enum FuenteDatos { simulador, mqtt }
 
 enum ModoUmbral { ph, eficacia }
@@ -7,9 +9,10 @@ enum ModoUmbral { ph, eficacia }
 /// Preferencias persistentes (SharedPreferences).
 class Settings {
   FuenteDatos fuente = FuenteDatos.simulador;
-  String mqttHost = 'broker.hivemq.com';
-  int mqttPort = 8000;
-  String nodo = 'nodo1';
+  String mqttHost = DeviceConst.mqttHostPorDefecto;
+  int mqttPort = DeviceConst.mqttPuertoPorDefecto;
+  String mqttRuta = DeviceConst.mqttRutaPorDefecto;
+  String nodo = DeviceConst.nodoPorDefecto;
   String ubicacion = ''; // vacío = usar la que manda el firmware
 
   double tempAguaC = 22.0;
@@ -19,6 +22,8 @@ class Settings {
   String pin = '1234';
 
   bool movimientoReducido = false;
+  bool sonidos = true;
+  bool vibracion = true;
   bool notifAlertas = true; // ciudadano
   bool notifInicio = true;
   bool notifFin = true;
@@ -32,6 +37,9 @@ class Settings {
         prefs.getString('${_p}fuente') ?? FuenteDatos.simulador.name);
     mqttHost = prefs.getString('${_p}mqttHost') ?? mqttHost;
     mqttPort = prefs.getInt('${_p}mqttPort') ?? mqttPort;
+    mqttRuta = prefs.getString('${_p}mqttRuta') ?? mqttRuta;
+    sonidos = prefs.getBool('${_p}sonidos') ?? sonidos;
+    vibracion = prefs.getBool('${_p}vibracion') ?? vibracion;
     nodo = prefs.getString('${_p}nodo') ?? nodo;
     ubicacion = prefs.getString('${_p}ubicacion') ?? ubicacion;
     tempAguaC = prefs.getDouble('${_p}tempAguaC') ?? tempAguaC;
@@ -53,6 +61,9 @@ class Settings {
     await prefs.setString('${_p}fuente', fuente.name);
     await prefs.setString('${_p}mqttHost', mqttHost);
     await prefs.setInt('${_p}mqttPort', mqttPort);
+    await prefs.setString('${_p}mqttRuta', mqttRuta);
+    await prefs.setBool('${_p}sonidos', sonidos);
+    await prefs.setBool('${_p}vibracion', vibracion);
     await prefs.setString('${_p}nodo', nodo);
     await prefs.setString('${_p}ubicacion', ubicacion);
     await prefs.setDouble('${_p}tempAguaC', tempAguaC);

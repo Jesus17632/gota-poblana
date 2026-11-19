@@ -119,6 +119,8 @@ class _DataPageState extends State<DataPage> {
       if (tecnico) ...[
         const SizedBox(height: 16),
         const _Sesiones(),
+        const SizedBox(height: 16),
+        const _Registro(),
       ],
     ]);
   }
@@ -336,6 +338,67 @@ class _Sesiones extends StatelessWidget {
               onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
         ],
       ),
+    );
+  }
+}
+
+class _Registro extends StatelessWidget {
+  const _Registro();
+
+  static Color _color(String tipo) => switch (tipo) {
+        'INICIO' || 'RELE_ON' => Palette.dosificando,
+        'FIN' || 'ACK' => Palette.normal,
+        'RECHAZO' || 'ERROR' || 'SIN RESPUESTA' || 'ERROR ENVÍO' ||
+        'FUERA_NORMA' =>
+          Palette.error,
+        'BUZZER' || 'LED' => Palette.mezclando,
+        _ => Palette.sinDatos,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppScope.of(context);
+    final items = s.registro.take(80).toList();
+    String hms(DateTime t) =>
+        '${hhmm(t)}:${t.second.toString().padLeft(2, '0')}';
+    return SectionCard(
+      title: 'Registro de eventos',
+      child: items.isEmpty
+          ? const Text('Sin eventos todavía.',
+              style: TextStyle(color: Palette.textoSecundario))
+          : ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: items.length,
+                separatorBuilder: (_, _) =>
+                    const Divider(height: 1, color: Palette.pista),
+                itemBuilder: (_, i) {
+                  final e = items[i];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 70,
+                            child: Text(hms(e.t),
+                                style: const TextStyle(
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                    color: Palette.textoSecundario)),
+                          ),
+                          SizedBox(
+                            width: 130,
+                            child: StatusDot(
+                                color: _color(e.tipo), text: e.tipo, bold: true),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(e.detalle)),
+                        ]),
+                  );
+                },
+              ),
+            ),
     );
   }
 }
