@@ -230,19 +230,19 @@ class _ChartPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _dashed(Canvas c, Offset a, Offset b, Paint p) {
+  void _dashed(Canvas cv, Offset a, Offset b, Paint p) {
     const dash = 6.0, gap = 4.0;
     final total = (b - a).distance;
     final dir = (b - a) / total;
     var d = 0.0;
     while (d < total) {
       final e = math.min(d + dash, total);
-      c.drawLine(a + dir * d, a + dir * e, p);
+      cv.drawLine(a + dir * d, a + dir * e, p);
       d = e + gap;
     }
   }
 
-  void _texto(Canvas c, String s, Offset at,
+  void _texto(Canvas cv, String s, Offset at,
       {bool alignRight = false,
       bool center = false,
       Color? color,
@@ -257,7 +257,7 @@ class _ChartPainter extends CustomPainter {
     var dx = at.dx;
     if (alignRight) dx -= tp.width;
     if (center) dx -= tp.width / 2;
-    tp.paint(c, Offset(dx, at.dy - tp.height / 2));
+    tp.paint(cv, Offset(dx, at.dy - tp.height / 2));
   }
 
   @override
