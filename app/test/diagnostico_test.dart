@@ -2,6 +2,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:agua/core/fallas.dart';
+import 'package:agua/services/notificaciones.dart';
 import 'package:agua/services/sonidos.dart';
 import 'package:agua/state/app_state.dart';
 import 'package:agua/state/diagnostico.dart';
@@ -22,7 +23,7 @@ Future<AppState> _app() async {
     'cfg.vibracion': false,
   });
   final prefs = await SharedPreferences.getInstance();
-  final s = AppState(prefs, sonidos: _SonidosMudos());
+  final s = AppState(prefs, sonidos: _SonidosMudos(), notificaciones: Notificaciones());
   await s.iniciar();
   await s.cambiarRol(Rol.tecnico);
   // Deja llegar las primeras lecturas

@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener, AppLifecycleState;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/chem.dart';
@@ -15,6 +16,7 @@ import '../data/data_source.dart';
 import '../data/models.dart';
 import '../data/mqtt_source.dart';
 import '../data/simulador_esp32.dart';
+import '../services/notificaciones.dart';
 import '../services/sonidos.dart';
 import 'diagnostico.dart';
 import 'settings.dart';
@@ -38,7 +40,9 @@ class RegistroItem {
 enum Rol { ciudadano, tecnico }
 
 class AppState extends ChangeNotifier {
-  AppState(this._prefs, {Sonidos? sonidos}) : _sonidos = sonidos ?? Sonidos() {
+  AppState(this._prefs, {Sonidos? sonidos, Notificaciones? notificaciones})
+      : _sonidos = sonidos ?? Sonidos(),
+        _notif = notificaciones ?? Notificaciones.plataforma() {
     settings.load(_prefs);
     rol = settings.tecnico ? Rol.tecnico : Rol.ciudadano;
     _cargarHistorial();
@@ -46,7 +50,16 @@ class AppState extends ChangeNotifier {
 
   final SharedPreferences _prefs;
   final Sonidos _sonidos;
+  final Notificaciones _notif;
   final Settings settings = Settings();
+
+  // Notificaciones del sistema: solo cuando la app NO está en pantalla.
+  AppLifecycleListener? _ciclo;
+  bool _enPrimerPlano = true;
+  int _idNotif = 100;
+  Timer? _perdidaConexion;
+  bool get notificacionesDisponibles => _notif.disponible;
+  bool get soportaMonitoreo => _notif.soportaMonitoreo;
 
   static const _uiTick = Duration(milliseconds: 500); // refresco a 2 Hz
   static const _cadaLectura = Duration(seconds: 2);
@@ -109,6 +122,13 @@ class AppState extends ChangeNotifier {
   // ---------- Ciclo de vida ----------
 
   Future<void> iniciar() async {
+    _ciclo = AppLifecycleListener(
+        onStateChange: (st) => _enPrimerPlano = st == AppLifecycleState.resumed);
+    await _notif.iniciar();
+    if (settings.notifSistema) await _notif.pedirPermiso();
+    if (settings.monitoreoFondo) {
+      await _notif.monitoreo(true, texto: 'Conectado a ${settings.nodo}');
+    }
     _uiTimer = Timer.periodic(_uiTick, (_) => _notificar());
     _saveTimer =
         Timer.periodic(const Duration(seconds: 30), (_) => _guardarHistorial());
@@ -138,6 +158,7 @@ class AppState extends ChangeNotifier {
     _subs.addAll([
       src.conexion.listen((c) {
         conexion = c;
+        _vigilarConexion();
         _notificar();
       }),
       src.telemetria.listen(_onTelemetria),
@@ -168,6 +189,9 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _ciclo?.dispose();
+    _perdidaConexion?.cancel();
+    _notif.monitoreo(false);
     _uiTimer?.cancel();
     _saveTimer?.cancel();
     for (final t in _pendientes.values) {
@@ -352,6 +376,61 @@ class AppState extends ChangeNotifier {
 
   void _avisar(TipoAviso tipo, String msg) {
     if (!_avisos.isClosed) _avisos.add(Aviso(tipo, msg));
+    _notificarSistema(tipo, msg);
+  }
+
+  static const _titulos = {
+    TipoAviso.inicio: 'Dosificación iniciada',
+    TipoAviso.fin: 'Dosificación terminada',
+    TipoAviso.error: 'Falla en el equipo',
+    TipoAviso.fueraNorma: 'Agua fuera de norma',
+    TipoAviso.rechazo: 'Orden rechazada',
+    TipoAviso.advertencia: 'Aviso del equipo',
+    TipoAviso.info: 'Cloración Agua',
+  };
+
+  /// Notificación fuera de la app, solo si la app no está en pantalla.
+  void _notificarSistema(TipoAviso tipo, String msg) {
+    if (!settings.notifSistema || _enPrimerPlano) return;
+    if (tipo == TipoAviso.info) return; // confirmaciones: no molestar
+    final critica = tipo == TipoAviso.error ||
+        tipo == TipoAviso.fueraNorma ||
+        tipo == TipoAviso.rechazo;
+    _notif.mostrar(
+      id: _idNotif++,
+      titulo: '${_titulos[tipo]} · $nodo',
+      cuerpo: msg,
+      critica: critica,
+    );
+  }
+
+  /// En segundo plano: si se pierde la conexión más de 20 s, avisa.
+  void _vigilarConexion() {
+    if (!sinConexion) {
+      _perdidaConexion?.cancel();
+      _perdidaConexion = null;
+      return;
+    }
+    _perdidaConexion ??= Timer(const Duration(seconds: 20), () {
+      _perdidaConexion = null;
+      if (sinConexion && hayDatos) {
+        _log('SIN CONEXIÓN', 'Más de 20 s sin conexión con el equipo');
+        _notificarSistema(TipoAviso.error,
+            'Se perdió la conexión con el equipo. El control local sigue protegido.');
+      }
+    });
+  }
+
+  Future<void> cambiarNotifSistema(bool v) async {
+    settings.notifSistema = v;
+    if (v) await _notif.pedirPermiso();
+    await guardarSettings();
+  }
+
+  Future<void> cambiarMonitoreo(bool v) async {
+    settings.monitoreoFondo = v;
+    await _notif.monitoreo(v, texto: 'Conectado a ${settings.nodo}');
+    await guardarSettings();
   }
 
   void _log(String tipo, String detalle) {
@@ -427,6 +506,15 @@ class AppState extends ChangeNotifier {
     _alerta(TipoAviso.fin, 'Prueba: objetivo alcanzado', Tono.fin, true);
     await Future.delayed(pausa);
     _alerta(TipoAviso.error, 'Prueba: aviso de error', Tono.error, true);
+    // Y una notificación del sistema real (aunque la app esté en pantalla).
+    if (settings.notifSistema) {
+      await _notif.mostrar(
+        id: _idNotif++,
+        titulo: 'Prueba de notificación · $nodo',
+        cuerpo: 'Así llegarán las alertas con la app en segundo plano.',
+        critica: true,
+      );
+    }
   }
 
   // ---------- Simulador (desarrollo) ----------

@@ -29,6 +29,8 @@ class Settings {
   bool movimientoReducido = false;
   bool sonidos = true;
   bool vibracion = true;
+  bool notifSistema = true; // notificaciones fuera de la app
+  bool monitoreoFondo = true; // Android: seguir conectado en segundo plano
   bool notifAlertas = true; // ciudadano
   bool notifInicio = true;
   bool notifFin = true;
@@ -56,6 +58,8 @@ class Settings {
     mqttPort = prefs.getInt('${_p}mqttPort') ?? mqttPort;
     mqttRuta = prefs.getString('${_p}mqttRuta') ?? mqttRuta;
     sonidos = prefs.getBool('${_p}sonidos') ?? sonidos;
+    notifSistema = prefs.getBool('${_p}notifSistema') ?? notifSistema;
+    monitoreoFondo = prefs.getBool('${_p}monitoreoFondo') ?? monitoreoFondo;
     vibracion = prefs.getBool('${_p}vibracion') ?? vibracion;
     nodo = prefs.getString('${_p}nodo') ?? nodo;
     ubicacion = prefs.getString('${_p}ubicacion') ?? ubicacion;
@@ -83,6 +87,8 @@ class Settings {
     await prefs.setInt('${_p}mqttPort', mqttPort);
     await prefs.setString('${_p}mqttRuta', mqttRuta);
     await prefs.setBool('${_p}sonidos', sonidos);
+    await prefs.setBool('${_p}notifSistema', notifSistema);
+    await prefs.setBool('${_p}monitoreoFondo', monitoreoFondo);
     await prefs.setBool('${_p}vibracion', vibracion);
     await prefs.setString('${_p}nodo', nodo);
     await prefs.setString('${_p}ubicacion', ubicacion);

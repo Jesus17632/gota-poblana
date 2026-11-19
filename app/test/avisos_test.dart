@@ -1,6 +1,7 @@
 // Los avisos (visual + sonido) salen de los eventos del equipo.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:agua/services/notificaciones.dart';
 import 'package:agua/services/sonidos.dart';
 import 'package:agua/state/app_state.dart';
 
@@ -22,7 +23,7 @@ Future<(AppState, _SonidosEspia, List<Aviso>)> _app({bool sonidos = true}) async
   });
   final prefs = await SharedPreferences.getInstance();
   final espia = _SonidosEspia();
-  final s = AppState(prefs, sonidos: espia);
+  final s = AppState(prefs, sonidos: espia, notificaciones: Notificaciones());
   final avisos = <Aviso>[];
   s.avisos.listen(avisos.add);
   await s.iniciar();

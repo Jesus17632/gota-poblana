@@ -180,6 +180,23 @@ class _Avisos extends StatelessWidget {
           valor: cfg.vibracion,
           onChanged: (v) => set(() => cfg.vibracion = v),
         ),
+        _Interruptor(
+          icon: Icons.notifications_active_outlined,
+          titulo: 'Notificaciones del sistema',
+          subtitulo: s.notificacionesDisponibles
+              ? 'Avisan aunque la app esté en segundo plano'
+              : 'No disponibles en esta plataforma',
+          valor: cfg.notifSistema,
+          onChanged: s.notificacionesDisponibles ? s.cambiarNotifSistema : null,
+        ),
+        if (s.soportaMonitoreo)
+          _Interruptor(
+            icon: Icons.sync,
+            titulo: 'Seguir conectado en segundo plano',
+            subtitulo: 'Muestra una notificación fija "Monitoreando el agua"',
+            valor: cfg.monitoreoFondo,
+            onChanged: s.cambiarMonitoreo,
+          ),
         _Fila(
           icon: Icons.campaign_outlined,
           titulo: 'Probar avisos',
@@ -554,7 +571,7 @@ class _Interruptor extends StatelessWidget {
   final String titulo;
   final String? subtitulo;
   final bool valor;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged; // null = deshabilitado
 
   @override
   Widget build(BuildContext context) {
