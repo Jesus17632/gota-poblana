@@ -18,6 +18,8 @@ class PhGauge extends StatelessWidget {
     this.etiqueta = 'pH',
     this.size = 280,
     this.icono,
+    this.onTap,
+    this.accion,
   });
 
   final double? ph;
@@ -27,14 +29,14 @@ class PhGauge extends StatelessWidget {
   final String etiqueta;
   final double size;
   final IconData? icono; // p. ej. falla de sensor
+  final VoidCallback? onTap; // círculo tocable (p. ej. "Hacer test de errores")
+  final String? accion; // texto de la acción, va en lugar de la etiqueta
 
   @override
   Widget build(BuildContext context) {
     final dur = animDur(context, 500);
     final textoColor = Palette.textoSobre(relleno);
-    return Semantics(
-      label: ph == null ? 'pH sin datos' : 'pH ${ph!.toStringAsFixed(2)}',
-      child: AnimatedOpacity(
+    final gauge = AnimatedOpacity(
         duration: dur,
         opacity: atenuado ? 0.45 : 1,
         child: TweenAnimationBuilder<double>(
@@ -84,14 +86,35 @@ class PhGauge extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          etiqueta,
-                          style: TextStyle(
-                            fontSize: size * 0.06,
-                            fontWeight: FontWeight.w700,
-                            color: textoColor.withValues(alpha: 0.85),
+                        if (accion != null)
+                          Container(
+                            margin: EdgeInsets.symmetric(horizontal: size * 0.1),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: textoColor.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              accion!,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              style: TextStyle(
+                                fontSize: size * 0.055,
+                                fontWeight: FontWeight.w800,
+                                color: textoColor,
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            etiqueta,
+                            style: TextStyle(
+                              fontSize: size * 0.06,
+                              fontWeight: FontWeight.w700,
+                              color: textoColor.withValues(alpha: 0.85),
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -100,6 +123,21 @@ class PhGauge extends StatelessWidget {
             );
           },
         ),
+      );
+
+    final etiquetaSem =
+        ph == null ? 'pH sin datos' : 'pH ${ph!.toStringAsFixed(2)}';
+    if (onTap == null) {
+      return Semantics(label: etiquetaSem, child: gauge);
+    }
+    return Semantics(
+      button: true,
+      label: '$etiquetaSem. ${accion ?? ''}',
+      // Sin recorte, para no cortar la sombra del círculo.
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+            customBorder: const CircleBorder(), onTap: onTap, child: gauge),
       ),
     );
   }

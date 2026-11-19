@@ -13,8 +13,26 @@ import 'format.dart';
 import 'vista_estado.dart';
 import 'widgets/bomba_indicador.dart';
 import 'widgets/common.dart';
+import 'widgets/diagnostico_panel.dart';
 import 'widgets/fallas_card.dart';
 import 'widgets/ph_gauge.dart';
+
+/// Llave del panel de diagnóstico, para desplazarse hasta él al iniciarlo.
+final GlobalKey _kDiagnostico = GlobalKey();
+
+/// Inicia el test completo y lleva la pantalla al panel (bajo el círculo).
+void iniciarTest(BuildContext context) {
+  final s = AppScope.of(context);
+  if (s.diagnostico.corriendo) return;
+  final dur = animDur(context, 350);
+  s.iniciarDiagnostico();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final c = _kDiagnostico.currentContext;
+    if (c != null) {
+      Scrollable.ensureVisible(c, duration: dur, alignment: 0.1);
+    }
+  });
+}
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -37,6 +55,11 @@ class HomePage extends StatelessWidget {
           const SizedBox(height: 16),
         ],
         const _Promedio24h(),
+        // Sin errores: el test queda al final, como botón rectangular.
+        if (!s.hayErrorEquipo) ...[
+          const SizedBox(height: 16),
+          const _BotonTest(),
+        ],
       ];
       if (ancho) {
         return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -76,6 +99,9 @@ class _Principal extends StatelessWidget {
         atenuado: v.atenuado,
         size: gaugeSize,
         icono: s.sensorOk ? null : v.icono,
+        // Con error reportado por el ESP32: círculo rojo que lanza el test.
+        accion: s.hayErrorEquipo ? 'Hacer test de errores' : null,
+        onTap: s.hayErrorEquipo ? () => iniciarTest(context) : null,
       ),
       const SizedBox(height: 20),
       if (tecnico && s.hayDatos) ...[
@@ -102,6 +128,11 @@ class _Principal extends StatelessWidget {
           text: v.queHacer!,
         ),
       ],
+      // El test aparece justo debajo del círculo principal.
+      Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: DiagnosticoPanel(key: _kDiagnostico),
+      ),
       if (!tecnico && s.hayFallasCriticas) ...[
         const SizedBox(height: 12),
         const AvisoLinea(
@@ -391,6 +422,37 @@ class _PanelObjetivoState extends State<_PanelObjetivo> {
     } finally {
       if (mounted) setState(() => _enviando = false);
     }
+  }
+}
+
+/// Botón rectangular de bordes redondeados al final de Inicio.
+class _BotonTest extends StatelessWidget {
+  const _BotonTest();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppScope.of(context);
+    final corriendo = s.diagnostico.corriendo;
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 56),
+          foregroundColor: Palette.normal,
+          side: const BorderSide(color: Palette.normal, width: 1.5),
+          backgroundColor: Palette.tarjeta,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          textStyle:
+              const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        onPressed: corriendo ? null : () => iniciarTest(context),
+        icon: const Icon(Icons.fact_check_outlined),
+        label: Text(corriendo
+            ? 'Test en curso…'
+            : 'Test de hardware y conectividad'),
+      ),
+    );
   }
 }
 

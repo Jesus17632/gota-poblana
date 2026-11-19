@@ -62,6 +62,21 @@ VistaEstado vistaDe(AppState s) {
     );
   }
 
+  // Error reportado por el ESP32 → círculo rojo que invita al test.
+  // Habla del EQUIPO, no del agua: nunca "agua mala".
+  if (s.hayErrorEquipo) {
+    return VistaEstado(
+      relleno: Palette.error,
+      punto: Palette.error,
+      indicador: s.sensorOk,
+      atenuado: false,
+      titulo: 'Falla en el equipo',
+      detalle: s.errorEquipoTexto,
+      queHacer: 'Toca el círculo para hacer el test de errores.',
+      icono: Icons.build_circle_outlined,
+    );
+  }
+
   if (!s.sensorOk) {
     return const VistaEstado(
       relleno: Palette.sinDatos,

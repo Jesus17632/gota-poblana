@@ -16,6 +16,7 @@ import '../data/models.dart';
 import '../data/mqtt_source.dart';
 import '../data/simulador_esp32.dart';
 import '../services/sonidos.dart';
+import 'diagnostico.dart';
 import 'settings.dart';
 
 enum TipoAviso { inicio, fin, error, fueraNorma, rechazo, advertencia, info }
@@ -84,6 +85,15 @@ class AppState extends ChangeNotifier {
 
   final _avisos = StreamController<Aviso>.broadcast();
   Stream<Aviso> get avisos => _avisos.stream;
+
+  /// Eventos crudos del dispositivo (los usa el diagnóstico).
+  final _eventosCtl = StreamController<EventoDispositivo>.broadcast();
+  Stream<EventoDispositivo> get eventosDispositivo => _eventosCtl.stream;
+
+  /// Test completo de hardware y conectividad.
+  final Diagnostico diagnostico = Diagnostico();
+
+  Future<void> iniciarDiagnostico() => diagnostico.ejecutar(this);
 
   /// Órdenes enviadas que aún no tienen respuesta del dispositivo.
   final Map<String, Timer> _pendientes = {};
@@ -169,6 +179,8 @@ class AppState extends ChangeNotifier {
     _sonidos.dispose();
     _guardarHistorial();
     _avisos.close();
+    _eventosCtl.close();
+    diagnostico.dispose();
     super.dispose();
   }
 
@@ -248,10 +260,28 @@ class AppState extends ChangeNotifier {
 
   bool get hayFallasCriticas => hw?.hayCriticas ?? false;
 
+  /// Error reportado por el ESP32: falla crítica, estado ERROR o sonda mal.
+  /// (La falta de conexión NO cuenta: eso se muestra en gris.)
+  bool get hayErrorEquipo =>
+      !sinConexion &&
+      hayDatos &&
+      (hayFallasCriticas || estadoCtrl == CtrlEstado.error || !sensorOk);
+
+  /// Texto corto del primer error, para el círculo principal.
+  String? get errorEquipoTexto {
+    if (!hayErrorEquipo) return null;
+    for (final f in fallas) {
+      if (f.critica) return f.info.titulo;
+    }
+    if (!sensorOk) return 'Revisar sensor';
+    return ultimo?.errorMsg ?? 'Error en el controlador';
+  }
+
   // ---------- Entrada: eventos ----------
 
   void _onEvento(EventoDispositivo e) {
     _resolverPendiente(e);
+    if (!_eventosCtl.isClosed) _eventosCtl.add(e);
     final detalle = e.detalle ?? '';
     _log(tipoEventoWire(e.tipo), [
       if (detalle.isNotEmpty) detalle,
