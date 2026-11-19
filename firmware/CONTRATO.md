@@ -60,7 +60,7 @@ Si pasan más de 10 s sin lecturas, la app muestra "Sin datos recientes".
 | | ácido insuficiente | `RECHAZO` "Ácido insuficiente" |
 | | válida | `INICIO`, luego ciclos (ver abajo), al final `FIN` |
 | `detener` | siempre | `RELE_OFF` (si estaba encendido) + estado `IDLE` + limpia error + `ACK` |
-| `p <ms>` | ms > 1500 | `RECHAZO` "Pulso mayor al máximo permitido (1500 ms)" |
+| `p <ms>` (la app prueba con `p 250`) | ms > 1500 | `RECHAZO` "Pulso mayor al máximo permitido (1500 ms)" |
 | | válida | `RELE_ON`, a los `<ms>` → `RELE_OFF` |
 | `c <pH>` | — | `ACK` "Calibrado con pH 7.00" |
 | `a 100` | — | `ACK` "Ácido: 100 mL" |

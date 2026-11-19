@@ -48,7 +48,14 @@ class DeviceConst {
   static const double umbralMin = 4.5;
   static const double umbralMax = 7.0;
   static const int pulsoMaxMs = 1500;
-  static const int pulsoPruebaMs = 100;
+  /// Duración de "Probar bomba". 250 ms porque:
+  ///  · un motor de 12 V tarda ~50–100 ms en arrancar: con 100 ms apenas
+  ///    "tiembla" y no se distingue si mueve líquido;
+  ///  · 250 ms se oye y se ve con claridad (clic del relé + giro del motor);
+  ///  · a 33 mL/s son ~8 mL de solución de pH 4: poco para el inventario
+  ///    (100 mL) y para el pH del agua.
+  ///  Muy por debajo del máximo de seguridad (pulsoMaxMs = 1500).
+  static const int pulsoPruebaMs = 250;
   static const double margenRechazo = 0.05; // dosificar con pH ≤ umbral + esto → RECHAZO
   static const double mlPorSegundoBomba = 33.0;
   static const double acidoInicialMl = 100.0;

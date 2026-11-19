@@ -178,6 +178,7 @@ constexpr float    UMBRAL_MAX          = 7.0f;
 constexpr float    MARGEN_RECHAZO      = 0.05f;   // dosificar con pH <= umbral + esto → RECHAZO
 constexpr float    TOLERANCIA_FIN      = 0.03f;   // FIN cuando pH <= umbral + esto
 constexpr uint16_t PULSO_MAX_MS        = 1500;
+constexpr uint16_t PULSO_PRUEBA_MS     = 250;     // "Probar bomba" de la app envía "p 250"
 constexpr float    ML_POR_SEGUNDO      = 33.0f;   // caudal de la bomba
 constexpr float    ACIDO_INICIAL_ML    = 100.0f;
 constexpr uint16_t MEZCLA_MS           = 3000;
