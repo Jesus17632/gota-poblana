@@ -43,6 +43,7 @@ class DeviceConst {
   static const String cmdAcido = 'a'; // "a 100"
   static const String cmdTestBuzzer = 'test_buzzer'; // inicio|fin|error
   static const String cmdTestLed = 'test_led'; // "<r> <g> <b>"
+  static const String cmdCaudal = 'q'; // "q <mL_por_s> <t0_ms>"  calibración de la bomba
 
   // ---------------- Límites de seguridad (los aplica el firmware) ----------
   static const double umbralMin = 4.5;
@@ -57,7 +58,11 @@ class DeviceConst {
   ///  Muy por debajo del máximo de seguridad (pulsoMaxMs = 1500).
   static const int pulsoPruebaMs = 250;
   static const double margenRechazo = 0.05; // dosificar con pH ≤ umbral + esto → RECHAZO
-  static const double mlPorSegundoBomba = 33.0;
+  static const double mlPorSegundoBomba = 33.0; // valor de fábrica; se calibra con "q"
+
+  // Calibración de caudal en dos puntos (ms). El largo no pasa de pulsoMaxMs.
+  static const int calibPulsoCortoMs = 500;
+  static const int calibPulsoLargoMs = 1500;
   static const double acidoInicialMl = 100.0;
   static const double acidoBajoMl = 20.0;
 

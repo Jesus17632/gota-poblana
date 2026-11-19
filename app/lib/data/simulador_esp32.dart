@@ -12,6 +12,7 @@
 //  a <ml>     · inventario de ácido → ACK
 //  test_buzzer <inicio|fin|error> → BUZZER
 //  test_led <r> <g> <b>           → LED
+//  q <mL/s> <t0_ms>               → ACK (calibración del caudal)
 //  Fallas críticas activas → dosificar / p se RECHAZAN con el motivo.
 //  Ácido: ~33 mL por segundo de bomba.
 //  Cada orden se responde con 150–400 ms de retardo (como la red).
@@ -62,6 +63,10 @@ class SimuladorESP32 implements DataSource {
 
   /// Fallas simuladas activas (códigos de Fallas). "detener" las limpia.
   final Set<String> _fallasSim = {};
+
+  // Bomba: V = q·(t − t0). Valores calibrados (los manda la app con "q").
+  double _caudalMlS = DeviceConst.mlPorSegundoBomba;
+  double _t0Ms = 0;
 
   /// Temperatura del agua simulada (°C). Se cambia desde el panel Dispositivos.
   double temperaturaC = 22.0;
@@ -151,6 +156,8 @@ class SimuladorESP32 implements DataSource {
       tempSupuesta: false,
       calib: Calib(offset: _offset, fecha: _calibFecha),
       resumen: _resumen,
+      caudalMlS: _caudalMlS,
+      t0Ms: _t0Ms,
     ));
     _hw.add(HardwareEstado(
       rele: _rele,
@@ -244,6 +251,18 @@ class SimuladorESP32 implements DataSource {
           _ledPruebaHasta = DateTime.now().add(const Duration(seconds: 5));
           _evento(TipoEvento.led, detalle: rgb.join(' '), cmd: cmd);
         }
+      case DeviceConst.cmdCaudal:
+        final q = double.tryParse(arg ?? '');
+        final t0 = partes.length > 2 ? double.tryParse(partes[2]) : 0.0;
+        if (q == null || q <= 0 || q > 200 || t0 == null || t0 < 0 || t0 > 500) {
+          _evento(TipoEvento.rechazo, detalle: 'Caudal inválido', cmd: cmd);
+        } else {
+          _caudalMlS = q;
+          _t0Ms = t0;
+          _evento(TipoEvento.ack,
+              detalle: 'Caudal: ${q.toStringAsFixed(1)} mL/s · t0 ${t0.round()} ms',
+              cmd: cmd);
+        }
       default:
         _evento(TipoEvento.rechazo, detalle: 'Orden desconocida: $orden', cmd: cmd);
     }
@@ -316,13 +335,13 @@ class SimuladorESP32 implements DataSource {
 
   // ---------------- Lógica de dosificación ----------------
 
-  double _mlDe(int ms) => DeviceConst.mlPorSegundoBomba * ms / 1000;
+  double _mlDe(int ms) => _caudalMlS * math.max(0.0, ms - _t0Ms) / 1000;
 
   /// Pulso proporcional a la distancia, apunta al 60 % de lo necesario.
   int _msPulso() {
     final dist = math.max(0.0, _ph - _umbral);
     final mlNecesarios = dist / _sHatReal;
-    final ms = mlNecesarios / DeviceConst.mlPorSegundoBomba * 1000 * 0.6;
+    final ms = _t0Ms + mlNecesarios / _caudalMlS * 1000 * 0.6;
     return ms.clamp(40, 150).round();
   }
 

@@ -8,6 +8,7 @@ import 'app_scope.dart';
 import 'data_page.dart';
 import 'format.dart';
 import 'home_page.dart';
+import 'nodos_page.dart';
 import 'settings_page.dart';
 import 'tokens.dart';
 import 'widgets/common.dart';
@@ -49,6 +50,7 @@ class _ShellState extends State<Shell> {
   static const _items = [
     (Icons.water_drop_outlined, Icons.water_drop, 'Inicio'),
     (Icons.insights_outlined, Icons.insights, 'Datos'),
+    (Icons.hub_outlined, Icons.hub, 'Nodos'),
     (Icons.tune_outlined, Icons.tune, 'Ajustes'),
   ];
 
@@ -107,8 +109,13 @@ class _ShellState extends State<Shell> {
     final s = AppScope.of(context);
     final d = Disposicion.of(context);
     final ahora = s.ahora;
-    final titulos = [saludo(ahora), 'Datos', 'Ajustes'];
-    const pages = [HomePage(), DataPage(), SettingsPage()];
+    final titulos = [saludo(ahora), 'Datos', 'Nodos', 'Ajustes'];
+    final pages = [
+      const HomePage(),
+      const DataPage(),
+      NodosPage(abrirInicio: () => _ir(0)),
+      const SettingsPage(),
+    ];
     final detener = mostrarDetener(s);
     final pad = d.compacto ? Esp.l : Esp.xl - 4;
 
@@ -123,7 +130,7 @@ class _ShellState extends State<Shell> {
               titulo: titulos[_tab],
               subtitulo: fechaLarga(ahora),
               compacto: d.compacto,
-              trailing: RolChip(tecnico: s.esTecnico, onTap: () => _ir(2)),
+              trailing: RolChip(tecnico: s.esTecnico, onTap: () => _ir(3)),
             ),
             AnimatedSwitcher(
               duration: animDur(context, 220),

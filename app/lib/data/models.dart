@@ -138,6 +138,8 @@ class Telemetria {
   final double? hoclPct;
   final Calib? calib;
   final Resumen? resumen;
+  final double? caudalMlS; // caudal calibrado de la bomba
+  final double? t0Ms; // tiempo muerto de arranque
 
   const Telemetria({
     required this.ts,
@@ -161,6 +163,8 @@ class Telemetria {
     this.hoclPct,
     this.calib,
     this.resumen,
+    this.caudalMlS,
+    this.t0Ms,
   });
 
   /// Devuelve null si faltan los campos obligatorios (ts, ph).
@@ -190,6 +194,8 @@ class Telemetria {
       hoclPct: _d(m['hocl_pct']),
       calib: Calib.fromMap(m['calib']),
       resumen: Resumen.fromMap(m['resumen']),
+      caudalMlS: _d(m['caudal_ml_s']),
+      t0Ms: _d(m['t0_ms']),
     );
   }
 }

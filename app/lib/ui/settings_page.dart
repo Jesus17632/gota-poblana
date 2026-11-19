@@ -6,6 +6,7 @@ import '../data/data_source.dart';
 import '../state/app_state.dart';
 import '../state/settings.dart';
 import 'app_scope.dart';
+import 'caudal_dialog.dart';
 import 'devices_panel.dart';
 import 'format.dart';
 import 'shell.dart';
@@ -421,14 +422,17 @@ class _Mantenimiento extends StatelessWidget {
       title: 'Mantenimiento',
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(
-          'Calibración: offset ${fmtNum(calib?.offset, dec: 2)} · ${calib?.fecha ?? 'sin fecha'}',
-          style: TextStyle(fontSize: 13, color: c.texto2),
+          'Sonda: offset ${fmtNum(calib?.offset, dec: 2)} · ${calib?.fecha ?? 'sin calibrar'}\n'
+          'Bomba: ${s.caudalMlS.toStringAsFixed(1)} mL/s'
+          '${s.ultimo?.t0Ms == null ? '' : ' · arranque ${s.ultimo!.t0Ms!.round()} ms'}'
+          '${s.ultimo?.caudalMlS == null ? ' (valor de fábrica)' : ''}',
+          style: TextStyle(fontSize: 13, color: c.texto2, height: 1.4),
         ),
         const SizedBox(height: Esp.m),
-        Wrap(spacing: Esp.s, runSpacing: Esp.s, children: [
-          OutlinedButton.icon(
-            icon: const Icon(Icons.tune, size: 18),
-            label: const Text('Calibrar'),
+        BotonGrid(botones: [
+          BotonAccion(
+            icon: Icons.tune,
+            label: 'Calibrar sonda',
             onPressed: () async {
               final v = await _pedirTexto(context,
                   titulo: 'pH de la solución de referencia',
@@ -442,9 +446,14 @@ class _Mantenimiento extends StatelessWidget {
               }
             },
           ),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.science_outlined, size: 18),
-            label: const Text('Rellené el ácido (100 mL)'),
+          BotonAccion(
+            icon: Icons.speed,
+            label: 'Calibrar caudal',
+            onPressed: (s.dosificando || s.rele) ? null : () => mostrarCalibrarCaudal(context),
+          ),
+          BotonAccion(
+            icon: Icons.science_outlined,
+            label: 'Rellené el ácido (100 mL)',
             onPressed: () async {
               try {
                 await s.rellenarAcido();

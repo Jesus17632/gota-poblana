@@ -32,60 +32,90 @@ import '../tokens.dart';
   );
 }
 
-/// "Termómetro" horizontal de pH 0–14 con la zona de la norma marcada y una
-/// aguja en el pH actual.
+/// "Termómetro" de pH 0–14. Muestra la zona de la norma y una aguja con el pH
+/// actual. Si se pasa [onObjetivo], la MISMA barra es el control del objetivo:
+/// se toca o arrastra un marcador limitado a [objMin]–[objMax].
 class PhEscala extends StatelessWidget {
-  const PhEscala({super.key, required this.ph, this.mostrarTexto = true});
+  const PhEscala({
+    super.key,
+    required this.ph,
+    this.mostrarTexto = true,
+    this.objetivo,
+    this.onObjetivo,
+    this.objMin = phMinUmbral,
+    this.objMax = phMaxUmbral,
+    this.paso = 0.05,
+  });
+
   final double? ph;
   final bool mostrarTexto;
+  final double? objetivo;
+  final ValueChanged<double>? onObjetivo;
+  final double objMin;
+  final double objMax;
+  final double paso;
+
+  bool get _interactiva => onObjetivo != null && objetivo != null;
 
   @override
   Widget build(BuildContext context) {
     final c = context.ag;
-    final dur = animDur(context, 500);
+    final dur = animDur(context, 450);
     final z = ph == null ? null : zonaPh(ph!);
+    final primario = Theme.of(context).colorScheme.primary;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       LayoutBuilder(builder: (context, cons) {
-        final w = cons.maxWidth;
-        double x(double v) => (v.clamp(0, 14) / 14) * w;
-        return SizedBox(
-          height: 46,
+        const lado = 14.0; // margen para que los marcadores no se corten
+        final w = cons.maxWidth - lado * 2;
+        double x(double v) => lado + (v.clamp(0, 14) / 14) * w;
+        double aPh(double dx) => ((dx - lado) / w * 14);
+
+        void elegir(double dx) {
+          final v = roundToStep(aPh(dx), paso).clamp(objMin, objMax).toDouble();
+          if (v != objetivo) onObjetivo!(v);
+        }
+
+        const barraTop = 22.0;
+        final alto = _interactiva ? 74.0 : 50.0;
+
+        final barra = SizedBox(
+          height: alto,
           child: Stack(clipBehavior: Clip.none, children: [
             // Barra con los colores del indicador universal
             Positioned(
-              left: 0,
-              right: 0,
-              top: 16,
+              left: lado,
+              right: lado,
+              top: barraTop,
               height: 12,
-              child: DecoratedBox(
+              child: const DecoratedBox(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  gradient: const LinearGradient(colors: kPhIndicatorColors),
+                  borderRadius: BorderRadius.all(Radius.circular(6)),
+                  gradient: LinearGradient(colors: kPhIndicatorColors),
                 ),
               ),
             ),
-            // Zonas fuera de la norma, atenuadas
+            // Fuera de la norma: atenuado
             Positioned(
-              left: 0,
-              width: x(nomMin),
-              top: 16,
+              left: lado,
+              width: x(nomMin) - lado,
+              top: barraTop,
               height: 12,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: c.fondo.withValues(alpha: 0.45),
+                  color: c.fondo.withValues(alpha: 0.5),
                   borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
                 ),
               ),
             ),
             Positioned(
               left: x(nomMax),
-              right: 0,
-              top: 16,
+              right: lado,
+              top: barraTop,
               height: 12,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: c.fondo.withValues(alpha: 0.45),
+                  color: c.fondo.withValues(alpha: 0.5),
                   borderRadius: const BorderRadius.horizontal(right: Radius.circular(6)),
                 ),
               ),
@@ -94,7 +124,7 @@ class PhEscala extends StatelessWidget {
             Positioned(
               left: x(nomMin),
               width: x(nomMax) - x(nomMin),
-              top: 10,
+              top: barraTop - 6,
               height: 24,
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -103,66 +133,121 @@ class PhEscala extends StatelessWidget {
                 ),
               ),
             ),
-            // Aguja
+            // Rango permitido para el objetivo (4.5–7.0)
+            if (_interactiva)
+              Positioned(
+                left: x(objMin),
+                width: x(objMax) - x(objMin),
+                top: barraTop + 16,
+                height: 3,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: primario.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            // Aguja del pH actual (arriba)
             if (ph != null)
               AnimatedPositioned(
                 duration: dur,
                 curve: Curves.easeOutCubic,
-                left: x(ph!) - 9,
-                top: 0,
+                left: x(ph!) - 10,
+                top: barraTop - 18,
                 child: Column(children: [
-                  Icon(Icons.arrow_drop_down_rounded, size: 18, color: c.texto),
                   Container(
-                    width: 18,
-                    height: 18,
+                    width: 20,
+                    height: 20,
                     decoration: BoxDecoration(
                       color: phIndicatorColor(ph!),
                       shape: BoxShape.circle,
                       border: Border.all(color: c.superficie, width: 3),
                       boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 4)
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 4)
                       ],
                     ),
                   ),
                 ]),
               ),
+            // Marcador del objetivo (abajo), arrastrable
+            if (_interactiva)
+              Positioned(
+                left: x(objetivo!) - 28,
+                top: barraTop - 2,
+                child: SizedBox(
+                  width: 56,
+                  child: Column(children: [
+                    Container(width: 3, height: 16, color: primario),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: primario,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        objetivo!.toStringAsFixed(2),
+                        style: TextStyle(
+                          color: Palette.textoSobre(primario),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
           ]),
+        );
+
+        if (!_interactiva) return barra;
+        return Semantics(
+          slider: true,
+          label: 'Objetivo de pH',
+          value: objetivo!.toStringAsFixed(2),
+          increasedValue: (objetivo! + paso).clamp(objMin, objMax).toStringAsFixed(2),
+          decreasedValue: (objetivo! - paso).clamp(objMin, objMax).toStringAsFixed(2),
+          onIncrease: () => onObjetivo!((objetivo! + paso).clamp(objMin, objMax).toDouble()),
+          onDecrease: () => onObjetivo!((objetivo! - paso).clamp(objMin, objMax).toDouble()),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.resizeLeftRight,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => elegir(d.localPosition.dx),
+              onHorizontalDragStart: (d) => elegir(d.localPosition.dx),
+              onHorizontalDragUpdate: (d) => elegir(d.localPosition.dx),
+              child: barra,
+            ),
+          ),
         );
       }),
       const SizedBox(height: 2),
       // Marcas y zonas, alineadas con la barra
       LayoutBuilder(builder: (context, cons) {
-        final w = cons.maxWidth;
-        double x(double v) => (v / 14) * w;
+        const lado = 14.0;
+        final w = cons.maxWidth - lado * 2;
+        double x(double v) => lado + (v / 14) * w;
         return SizedBox(
           height: 34,
           child: Stack(clipBehavior: Clip.none, children: [
-            Positioned(left: 0, top: 0, child: _marca(context, '0')),
+            Positioned(left: lado - 4, top: 0, child: _marca(context, '0')),
             Positioned(
-                left: x(nomMin) - 20,
-                width: 40,
-                top: 0,
-                child: _marca(context, '6.5', centro: true)),
+                left: x(nomMin) - 20, width: 40, top: 0, child: _marca(context, '6.5', centro: true)),
             Positioned(
-                left: x(nomMax) - 20,
-                width: 40,
-                top: 0,
-                child: _marca(context, '8.5', centro: true)),
-            Positioned(right: 0, top: 0, child: _marca(context, '14')),
-            Positioned(left: 0, top: 16, child: _zona(context, 'Ácido')),
+                left: x(nomMax) - 20, width: 40, top: 0, child: _marca(context, '8.5', centro: true)),
+            Positioned(right: lado - 6, top: 0, child: _marca(context, '14')),
+            Positioned(left: lado - 4, top: 16, child: _zona(context, 'Ácido')),
             Positioned(
                 left: x(nomMin),
                 width: x(nomMax) - x(nomMin),
                 top: 16,
                 child: _zona(context, 'Norma', centro: true)),
-            Positioned(right: 0, top: 16, child: _zona(context, 'Alcalino')),
+            Positioned(right: lado - 6, top: 16, child: _zona(context, 'Alcalino')),
           ]),
         );
       }),
       if (mostrarTexto && z != null) ...[
-        const SizedBox(height: Esp.m),
+        const SizedBox(height: Esp.s),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(z.icono, size: 20, color: Palette.legible(z.color, oscuro: c.oscuro)),
           const SizedBox(width: Esp.s),
@@ -190,6 +275,5 @@ class PhEscala extends StatelessWidget {
       textAlign: centro ? TextAlign.center : null,
       maxLines: 1,
       overflow: TextOverflow.visible,
-      style: TextStyle(
-          fontSize: 12, fontWeight: FontWeight.w700, color: context.ag.texto2));
+      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.ag.texto2));
 }

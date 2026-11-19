@@ -46,4 +46,6 @@ class Cmd {
   static String testBuzzer(String tipo) => '${DeviceConst.cmdTestBuzzer} $tipo';
   static String testLed(int r, int g, int b) =>
       '${DeviceConst.cmdTestLed} $r $g $b';
+  static String caudal(double mlPorSegundo, double t0Ms) =>
+      '${DeviceConst.cmdCaudal} ${mlPorSegundo.toStringAsFixed(2)} ${t0Ms.round()}';
 }

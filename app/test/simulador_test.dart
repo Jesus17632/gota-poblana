@@ -66,6 +66,23 @@ void main() {
     expect(e.cmd, 'detener');
   });
 
+  test('q <mL/s> <t0> → ACK y la telemetría reporta el caudal', () async {
+    final f = primerEvento(sim);
+    await sim.enviarCmd(Cmd.caudal(31.8, 25));
+    final e = await f;
+    expect(e.tipo, TipoEvento.ack);
+    expect(e.cmd, 'q 31.80 25');
+    final t = await sim.telemetria.first.timeout(const Duration(seconds: 2));
+    expect(t.caudalMlS, 31.8);
+    expect(t.t0Ms, 25);
+  });
+
+  test('q inválido → RECHAZO', () async {
+    final f = primerEvento(sim);
+    await sim.enviarCmd('q -5 0');
+    expect((await f).tipo, TipoEvento.rechazo);
+  });
+
   test('orden desconocida → RECHAZO', () async {
     final f = primerEvento(sim);
     await sim.enviarCmd('hola');

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 
 import '../core/chem.dart';
+import '../core/device_constants.dart';
 import '../core/palette.dart';
 import '../data/data_source.dart';
 import '../data/models.dart';
@@ -55,12 +56,17 @@ class HomePage extends StatelessWidget {
       final principal = _Principal(gaugeSize: gauge);
       final resto = <Widget>[
         if (s.esTecnico && s.fallas.isNotEmpty) FallasCard(fallas: s.fallas),
-        SectionCard(
-          title: 'Escala de pH',
-          child: PhEscala(ph: s.hayDatos && s.sensorOk ? s.ultimo!.ph : null),
-        ),
+        // Ciudadano: escala de solo lectura. Técnico: la escala ES el control
+        // del objetivo (tarjeta Objetivo).
+        if (s.esTecnico)
+          const _PanelObjetivo()
+        else
+          SectionCard(
+            title: 'Escala de pH',
+            child: PhEscala(ph: s.hayDatos && s.sensorOk ? s.ultimo!.ph : null),
+          ),
         const _Resumen(),
-        if (s.esTecnico) ...const [_PanelControlador(), _PanelObjetivo()],
+        if (s.esTecnico) const _PanelControlador(),
         const _Promedio24h(),
         // Sin errores, el test queda al final como botón rectangular.
         if (!s.hayErrorEquipo) const _BotonTest(),
@@ -289,18 +295,37 @@ class _PanelObjetivo extends StatefulWidget {
 class _PanelObjetivoState extends State<_PanelObjetivo> {
   ModoUmbral? _modo;
   double? _objPh;
-  double? _metaPct;
   bool _enviando = false;
+  String? _avisoEficacia;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final s = AppScope.of(context);
     _modo ??= s.settings.modoUmbral;
-    _metaPct ??= s.settings.metaHoclPct;
     _objPh ??= roundToStep(s.ultimo?.umbral ?? s.pHRecomendado, 0.05)
         .clamp(phMinUmbral, phMaxUmbral)
         .toDouble();
+  }
+
+  void _fijar(double ph) => setState(() {
+        _objPh = ph;
+        _avisoEficacia = null;
+      });
+
+  /// Chip de eficacia: convierte % HOCl a pH (lo que se envía es SIEMPRE pH).
+  void _eficacia(double pct, double temp, double? phActual) {
+    final t = targetForEfficacy(pct: pct, tempC: temp, phActual: phActual);
+    setState(() {
+      _objPh = roundToStep(t.ph, 0.05).clamp(phMinUmbral, phMaxUmbral).toDouble();
+      _avisoEficacia = t.phSinAjuste > phMaxUmbral
+          ? '${pct.round()} % ya se logra con pH ≤ ${t.phSinAjuste.toStringAsFixed(2)}: '
+              'no hace falta bajar más.'
+          : t.ajustadoAlMinimo
+              ? '${pct.round()} % pide pH ${t.phSinAjuste.toStringAsFixed(2)}; '
+                  'se ajustó al mínimo permitido (4.50).'
+              : null;
+    });
   }
 
   @override
@@ -308,13 +333,11 @@ class _PanelObjetivoState extends State<_PanelObjetivo> {
     final s = AppScope.of(context);
     final c = context.ag;
     final temp = s.temperatura.tempC;
-    final phActual = s.ultimo?.ph;
+    final phActual = s.hayDatos && s.sensorOk ? s.ultimo!.ph : null;
     final modo = _modo!;
-    final ef = targetForEfficacy(pct: _metaPct!, tempC: temp, phActual: phActual);
-    final umbral = modo == ModoUmbral.ph ? _objPh! : ef.ph;
-    final yaSeCumple = modo == ModoUmbral.eficacia
-        ? ef.yaSeCumple
-        : (phActual != null && phActual <= umbral);
+    final umbral = _objPh!;
+    final pctObjetivo = hoclPct(umbral, temp);
+    final yaSeCumple = phActual != null && phActual <= umbral + DeviceConst.margenRechazo;
     final recomendado = s.pHRecomendado;
     final enviando = _enviando || s.enviando(Cmd.dosificar);
     final puede = !s.dosificando &&
@@ -325,6 +348,12 @@ class _PanelObjetivoState extends State<_PanelObjetivo> {
         !s.hayErrorEquipo &&
         !yaSeCumple &&
         !enviando;
+
+    final (grande, chico) = modo == ModoUmbral.ph
+        ? ('pH ${umbral.toStringAsFixed(2)}',
+            '≈ ${pctObjetivo.round()} % de cloro activo a ${temp.toStringAsFixed(0)} °C')
+        : ('${pctObjetivo.round()} % cloro activo',
+            '→ pH ${umbral.toStringAsFixed(2)} a ${temp.toStringAsFixed(0)} °C');
 
     return SectionCard(
       title: 'Objetivo',
@@ -339,48 +368,30 @@ class _PanelObjetivoState extends State<_PanelObjetivo> {
         onSelectionChanged: (v) => setState(() => _modo = v.first),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (modo == ModoUmbral.ph) ...[
-          Text('pH ${_objPh!.toStringAsFixed(2)}',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: c.texto)),
-          Slider(
-            min: phMinUmbral,
-            max: phMaxUmbral,
-            divisions: ((phMaxUmbral - phMinUmbral) / 0.05).round(),
-            value: _objPh!,
-            label: _objPh!.toStringAsFixed(2),
-            onChanged: (v) => setState(() => _objPh = roundToStep(v, 0.05)),
+        Text(grande, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: c.texto)),
+        Text(chico, style: TextStyle(fontSize: 13, color: c.texto2)),
+        const SizedBox(height: Esp.m),
+        // La escala es el slider: arrastra el marcador (4.5–7.0).
+        PhEscala(ph: phActual, objetivo: umbral, onObjetivo: _fijar),
+        const SizedBox(height: Esp.s),
+        Wrap(spacing: Esp.s, runSpacing: Esp.s, children: [
+          ActionChip(
+            avatar: const Icon(Icons.auto_awesome, size: 16),
+            label: Text('Recomendado ${recomendado.toStringAsFixed(2)}'),
+            onPressed: () => _fijar(
+                roundToStep(recomendado, 0.05).clamp(phMinUmbral, phMaxUmbral).toDouble()),
           ),
-        ] else ...[
-          Text('${_metaPct!.round()} % HOCl → pH ${ef.phSinAjuste.toStringAsFixed(2)}',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: c.texto)),
-          Text('a ${temp.toStringAsFixed(0)} °C',
-              style: TextStyle(fontSize: 13, color: c.texto2)),
-          Slider(
-            min: 50,
-            max: 99,
-            divisions: 49,
-            value: _metaPct!,
-            label: '${_metaPct!.round()} %',
-            onChanged: (v) => setState(() => _metaPct = v.roundToDouble()),
-          ),
-          if (ef.ajustadoAlMinimo)
-            const AvisoLinea(
-              color: Palette.precaucion,
-              icon: Icons.vertical_align_bottom,
-              text: 'Se ajustó al mínimo permitido: pH 4.50',
-            ),
+          if (modo == ModoUmbral.eficacia)
+            for (final p in const [80.0, 90.0, 95.0])
+              ActionChip(
+                label: Text('${p.round()} %'),
+                onPressed: () => _eficacia(p, temp, phActual),
+              ),
+        ]),
+        if (_avisoEficacia != null) ...[
+          const SizedBox(height: Esp.m),
+          AvisoLinea(color: Palette.precaucion, icon: Icons.info_outline, text: _avisoEficacia!),
         ],
-        ActionChip(
-          avatar: const Icon(Icons.auto_awesome, size: 16),
-          label: Text('Recomendado: pH ${recomendado.toStringAsFixed(2)} '
-              'a ${temp.toStringAsFixed(0)} °C'),
-          onPressed: () => setState(() {
-            _modo = ModoUmbral.ph;
-            _objPh = roundToStep(recomendado, 0.05)
-                .clamp(phMinUmbral, phMaxUmbral)
-                .toDouble();
-          }),
-        ),
         if (yaSeCumple) ...[
           const SizedBox(height: Esp.m),
           const AvisoLinea(

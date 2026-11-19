@@ -54,6 +54,9 @@ constexpr uint16_t MQTT_TCP_PUERTO = 1883; // opcional: para mosquitto_pub/sub
 #define CMD_ACIDO            "a"             // "a 100"    reinicia inventario de ácido (mL)
 #define CMD_TEST_BUZZER      "test_buzzer"   // "test_buzzer inicio|fin|error"
 #define CMD_TEST_LED         "test_led"      // "test_led <r> <g> <b>"  (0–255)
+#define CMD_CAUDAL           "q"             // "q <mL_por_s> <t0_ms>"  calibración de la bomba (NUEVO)
+                                             //   → q_mL_ms = mL_por_s / 1000; t0_ms = t0_ms; ACK
+                                             //   rechazar si mL_por_s <= 0 o > 200, o t0 fuera de 0–500
 
 // ---------------------------------------------------------------------------
 // 4. Campos JSON de TEMA_TELEMETRIA
@@ -81,6 +84,8 @@ constexpr uint16_t MQTT_TCP_PUERTO = 1883; // opcional: para mosquitto_pub/sub
 #define K_CALIB              "calib"              // objeto { offset, fecha }
 #define K_CALIB_OFFSET       "offset"             //   float
 #define K_CALIB_FECHA        "fecha"              //   string "2026-11-19T10:20"
+#define K_CAUDAL_ML_S        "caudal_ml_s"        // float  caudal calibrado (q_mL_ms * 1000)  (NUEVO)
+#define K_T0_MS              "t0_ms"              // float  tiempo muerto de arranque          (NUEVO)
 #define K_RESUMEN            "resumen"            // objeto, solo al terminar una sesión
 #define K_RES_UMBRAL         "umbral"             //   float
 #define K_RES_PH_FINAL       "ph_final"           //   float
@@ -117,6 +122,7 @@ constexpr uint16_t MQTT_TCP_PUERTO = 1883; // opcional: para mosquitto_pub/sub
 #define MOTIVO_SENSOR        "Sensor sin respuesta"
 #define MOTIVO_UMBRAL_RANGO  "Umbral fuera de rango (4.5–7.0)"
 #define MOTIVO_DESCONOCIDA   "Orden desconocida"
+#define MOTIVO_CAUDAL        "Caudal inválido"
 
 // ---------------------------------------------------------------------------
 // 6. TEMA_HARDWARE

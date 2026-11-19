@@ -278,3 +278,86 @@ class Linea extends StatelessWidget {
   Widget build(BuildContext context) =>
       Divider(height: 1, thickness: 1, color: context.ag.linea);
 }
+
+/// Acción para [BotonGrid].
+class BotonAccion {
+  const BotonAccion({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.color,
+    this.cargando = false,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed; // null = deshabilitado
+  final Color? color; // p. ej. Palette.error para acciones destructivas
+  final bool cargando; // muestra "Enviando…"
+}
+
+/// Cuadrícula de botones: todos del MISMO ancho y alto, ícono arriba y
+/// texto abajo. Se adapta a 2, 3 o 4 columnas según el ancho.
+class BotonGrid extends StatelessWidget {
+  const BotonGrid({super.key, required this.botones, this.alto = 84});
+  final List<BotonAccion> botones;
+  final double alto;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, cons) {
+      final w = cons.maxWidth;
+      final cols = w >= 640 ? 4 : (w >= 420 ? 3 : 2);
+      const gap = Esp.s;
+      final ancho = (w - gap * (cols - 1)) / cols;
+      return Wrap(spacing: gap, runSpacing: gap, children: [
+        for (final b in botones)
+          SizedBox(width: ancho, height: alto, child: _BotonTile(b: b)),
+      ]);
+    });
+  }
+}
+
+class _BotonTile extends StatelessWidget {
+  const _BotonTile({required this.b});
+  final BotonAccion b;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.ag;
+    final activo = b.onPressed != null && !b.cargando;
+    final color = b.color ?? Theme.of(context).colorScheme.primary;
+    final fg = Palette.legible(color, oscuro: c.oscuro);
+    return Opacity(
+      opacity: activo || b.cargando ? 1 : 0.45,
+      child: Material(
+        color: c.superficie2,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: activo ? b.onPressed : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Esp.s, vertical: Esp.s),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              if (b.cargando)
+                SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: fg))
+              else
+                Icon(b.icon, size: 24, color: fg),
+              const SizedBox(height: 6),
+              Text(
+                b.cargando ? 'Enviando…' : b.label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w700, color: c.texto, height: 1.15),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}

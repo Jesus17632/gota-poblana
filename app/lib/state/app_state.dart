@@ -534,6 +534,15 @@ class AppState extends ChangeNotifier {
     await _orden(Cmd.pulso(ms));
   }
 
+  /// Calibración del caudal de la bomba ("q <mL/s> <t0_ms>").
+  Future<void> calibrarCaudal(double mlPorSegundo, double t0Ms) async {
+    _exigirTecnico();
+    await _orden(Cmd.caudal(mlPorSegundo, t0Ms));
+  }
+
+  /// Caudal en uso: el que reporta el equipo o el de fábrica.
+  double get caudalMlS => ultimo?.caudalMlS ?? DeviceConst.mlPorSegundoBomba;
+
   Future<void> probarBuzzer(String tipo) async {
     _exigirTecnico();
     await _orden(Cmd.testBuzzer(tipo));

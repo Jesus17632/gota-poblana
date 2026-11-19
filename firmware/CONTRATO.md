@@ -67,6 +67,8 @@ Si pasan más de 10 s sin lecturas, la app muestra "Sin datos recientes".
 | `test_buzzer inicio\|fin\|error` | — | `BUZZER` con `detalle` = la secuencia |
 | `test_led r g b` | — | `LED` con `detalle` = `"r g b"` |
 | `dosificar` / `p <ms>` | falla crítica activa | `RECHAZO` "Falla de hardware: <descripción>" |
+| `q <mL/s> <t0_ms>` **(nuevo)** | fuera de rango | `RECHAZO` "Caudal inválido" |
+| | válida | guarda caudal y arranque, `ACK` "Caudal: 33.0 mL/s · t0 30 ms" |
 | otra | — | `RECHAZO` "Orden desconocida" |
 | `TEMA_UMBRAL` "x.xx" | fuera de 4.5–7.0 | `RECHAZO` "Umbral fuera de rango (4.5–7.0)" con `"cmd":"umbral x.xx"` |
 | | válido | actualiza `umbral` (sin evento) |
@@ -202,6 +204,33 @@ void onMensaje(char* topic, byte* payload, unsigned int len) {
   else publicarEvento(EV_RECHAZO, MOTIVO_DESCONOCIDA, msg);
 }
 ```
+
+## Calibración del caudal (comando nuevo `q`)
+
+La app calibra la bomba en dos puntos (pulsos de 500 y 1500 ms medidos con
+probeta) y envía `q <mL_por_s> <t0_ms>`. El firmware ya usa el modelo
+`V = q_mL_ms · (t − t0_ms)`; solo falta aceptar el comando y reportarlo:
+
+```cpp
+} else if (orden == CMD_CAUDAL) {                 // "q 31.80 25"
+  int sp2 = arg.indexOf(' ');
+  float q  = (sp2 < 0 ? arg : arg.substring(0, sp2)).toFloat();
+  float t0 = sp2 < 0 ? 0.0f : arg.substring(sp2 + 1).toFloat();
+  if (q <= 0 || q > 200 || t0 < 0 || t0 > 500) {
+    publicarEvento(EV_RECHAZO, MOTIVO_CAUDAL, msg);
+  } else {
+    q_mL_ms = q / 1000.0f;
+    t0_ms   = t0;
+    publicarEvento(EV_ACK, "Caudal: " + String(q, 1) + " mL/s · t0 " + String((int)t0) + " ms", msg);
+  }
+}
+// y en publicarTelemetria():
+d[K_CAUDAL_ML_S] = q_mL_ms * 1000.0f;
+d[K_T0_MS]       = t0_ms;
+```
+
+Opcional: guardar `q_mL_ms` y `t0_ms` en `Preferences` (NVS) para que no se
+pierdan al reiniciar.
 
 ## Cómo probar sin la app
 

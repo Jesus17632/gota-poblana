@@ -131,7 +131,7 @@ class DevicesPanel extends StatelessWidget {
             ), 'TEMP'),
           ];
           return Wrap(spacing: gap, runSpacing: gap, children: [
-            for (final t in tarjetas) SizedBox(width: w, child: t),
+            for (final t in tarjetas) SizedBox(width: w, height: 92, child: t),
           ]);
         }),
         const SizedBox(height: 16),
@@ -141,24 +141,23 @@ class DevicesPanel extends StatelessWidget {
             style: TextStyle(
                 fontSize: 12, letterSpacing: 0.6, fontWeight: FontWeight.w700, color: ag.texto2)),
         const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          _BotonOrden(
-            cmd: Cmd.pulso(DeviceConst.pulsoPruebaMs),
+        BotonGrid(botones: [
+          BotonAccion(
             icon: Icons.water_drop_outlined,
-            texto: 'Probar bomba ${DeviceConst.pulsoPruebaMs} ms',
-            onPressed: () => _probarBomba(context, s),
+            label: 'Bomba ${DeviceConst.pulsoPruebaMs} ms',
+            cargando: s.enviando(Cmd.pulso(DeviceConst.pulsoPruebaMs)),
+            onPressed: (s.dosificando || s.rele) ? null : () => _probarBomba(context, s),
           ),
           for (final t in const ['inicio', 'fin', 'error'])
-            _BotonOrden(
-              cmd: Cmd.testBuzzer(t),
+            BotonAccion(
               icon: Icons.volume_up_outlined,
-              texto: 'Buzzer: $t',
+              label: 'Buzzer $t',
+              cargando: s.enviando(Cmd.testBuzzer(t)),
               onPressed: () => _intentar(() => s.probarBuzzer(t)),
             ),
-          _BotonOrden(
-            cmd: null,
+          BotonAccion(
             icon: Icons.palette_outlined,
-            texto: 'Probar LED',
+            label: 'LED',
             onPressed: () => _elegirColor(context, s),
           ),
         ]),
@@ -192,22 +191,22 @@ class DevicesPanel extends StatelessWidget {
                   'cálculos usen esta temperatura.',
             ),
           const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(foregroundColor: Palette.error),
-              icon: const Icon(Icons.sensors_off),
-              label: const Text('Simular falla de sensor'),
-              onPressed: () => s.simularFallaSensor(),
+          BotonGrid(botones: [
+            BotonAccion(
+              icon: Icons.sensors_off,
+              label: 'Falla de sensor',
+              color: Palette.error,
+              onPressed: s.simularFallaSensor,
             ),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(foregroundColor: Palette.error),
-              icon: const Icon(Icons.build_outlined),
-              label: const Text('Simular otra falla…'),
+            BotonAccion(
+              icon: Icons.build_outlined,
+              label: 'Otra falla…',
+              color: Palette.error,
               onPressed: () => _elegirFalla(context, s),
             ),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.healing_outlined),
-              label: const Text('Quitar fallas'),
+            BotonAccion(
+              icon: Icons.healing_outlined,
+              label: 'Quitar fallas',
               onPressed: s.fallas.isEmpty ? null : s.limpiarFallasSimuladas,
             ),
           ]),
@@ -235,7 +234,7 @@ class DevicesPanel extends StatelessWidget {
         content: Text(
             'Se enviará "p ${DeviceConst.pulsoPruebaMs}": la bomba se '
             'encenderá ${DeviceConst.pulsoPruebaMs} ms y agregará '
-            '~${(DeviceConst.mlPorSegundoBomba * DeviceConst.pulsoPruebaMs / 1000).toStringAsFixed(1)} mL de ácido.'),
+            '~${(s.caudalMlS * DeviceConst.pulsoPruebaMs / 1000).toStringAsFixed(1)} mL de ácido.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -368,38 +367,6 @@ class _Modulo extends StatelessWidget {
         const SizedBox(height: 6),
         StatusDot(color: color, text: valor),
       ]),
-    );
-  }
-}
-
-/// Botón que muestra "Enviando…" mientras su orden no tenga respuesta.
-class _BotonOrden extends StatelessWidget {
-  const _BotonOrden({
-    required this.cmd,
-    required this.icon,
-    required this.texto,
-    required this.onPressed,
-  });
-  final String? cmd;
-  final IconData icon;
-  final String texto;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = AppScope.of(context);
-    final enviando = cmd != null && s.enviando(cmd!);
-    final ocupado = s.dosificando || s.rele;
-    final esBomba = cmd != null && cmd!.startsWith('${DeviceConst.cmdPulso} ');
-    return OutlinedButton.icon(
-      onPressed: enviando || (esBomba && ocupado) ? null : onPressed,
-      icon: enviando
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2))
-          : Icon(icon, size: 18),
-      label: Text(enviando ? 'Enviando…' : texto),
     );
   }
 }
