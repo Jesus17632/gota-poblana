@@ -204,7 +204,33 @@ class PageHeader extends StatelessWidget {
   }
 }
 
-/// Chip de rol en el encabezado (toca para ir a Ajustes).
+/// Logo de Gota Poblana (circular).
+class LogoGota extends StatelessWidget {
+  const LogoGota({super.key, this.size = 40, this.borde = 0});
+  final double size;
+  final double borde;
+
+  static const asset = 'assets/logo_gota.png';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      padding: EdgeInsets.all(borde),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: context.ag.superficie,
+      ),
+      child: ClipOval(
+        child: Image.asset(asset, fit: BoxFit.cover, width: size, height: size,
+            semanticLabel: 'Gota Poblana'),
+      ),
+    );
+  }
+}
+
+/// Chip de perfil en el encabezado: foto (logo) + rol. Toca para ir a Ajustes.
 class RolChip extends StatelessWidget {
   const RolChip({super.key, required this.tecnico, this.onTap});
   final bool tecnico;
@@ -221,11 +247,10 @@ class RolChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(tecnico ? Icons.engineering_outlined : Icons.person_outline,
-                size: 18, color: color),
-            const SizedBox(width: 6),
+            const LogoGota(size: 32),
+            const SizedBox(width: 8),
             Text(tecnico ? 'Técnico' : 'Ciudadano',
                 style: TextStyle(
                     fontWeight: FontWeight.w700, fontSize: 13, color: color)),

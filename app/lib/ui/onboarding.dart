@@ -7,6 +7,7 @@ import '../core/palette.dart';
 import '../state/app_state.dart';
 import 'app_scope.dart';
 import 'tokens.dart';
+import 'widgets/common.dart';
 import 'widgets/ph_escala.dart';
 import 'widgets/ph_gauge.dart';
 
@@ -80,7 +81,7 @@ class _OnboardingState extends State<Onboarding> {
               controller: _pages,
               onPageChanged: (i) => setState(() => _i = i),
               children: const [
-                _PaginaPecera(),
+                _PaginaBienvenida(),
                 _PaginaEscala(),
                 _PaginaFalla(),
                 _PaginaRol(),
@@ -164,22 +165,28 @@ double _tamPecera(BuildContext context) {
 }
 
 // 1 ---------------------------------------------------------------------------
-class _PaginaPecera extends StatelessWidget {
-  const _PaginaPecera();
+class _PaginaBienvenida extends StatelessWidget {
+  const _PaginaBienvenida();
 
   @override
   Widget build(BuildContext context) {
+    final t = _tamPecera(context);
     return _Pagina(
-      visual: PhGauge(
-        ph: 7.2,
-        vidrio: Palette.normal,
-        aguaConColor: true,
-        atenuado: false,
-        size: _tamPecera(context),
+      visual: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+                color: const Color(0xFF2BBBD7).withValues(alpha: 0.35),
+                blurRadius: t * 0.25,
+                spreadRadius: t * 0.02),
+          ],
+        ),
+        child: LogoGota(size: t),
       ),
-      titulo: 'El agua, de un vistazo',
-      texto: 'La pecera muestra el pH del agua en tiempo real. '
-          'Su color cambia con el pH, como el papel indicador.',
+      titulo: 'Bienvenido a Gota Poblana',
+      texto: 'Vigila el pH del agua en tiempo real y entérate al instante si '
+          'algo necesita atención. Son 3 pasos rápidos.',
     );
   }
 }
@@ -206,9 +213,9 @@ class _PaginaEscalaState extends State<_PaginaEscala> {
         atenuado: false,
         size: _tamPecera(context) * 0.85,
       ),
-      titulo: '¿Qué pH está bien?',
-      texto: 'Mueve el control. Entre 6.5 y 8.5 está dentro de la norma; '
-          'fuera de ese rango la app avisa.',
+      titulo: 'La pecera muestra el pH',
+      texto: 'Su color cambia con el pH, como el papel indicador. Mueve el '
+          'control: entre 6.5 y 8.5 está dentro de la norma; fuera, la app avisa.',
       extra: Column(children: [
         Slider(
           min: 4,

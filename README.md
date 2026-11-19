@@ -1,4 +1,4 @@
-# CloracionAgua
+# Gota Poblana
 
 Sistema IoT de control de pH para agua: un ESP32-S3 lee una sonda de pH y
 dosifica una solución ácida para **bajar** el pH hasta un umbral (4.5–7.0).

@@ -31,7 +31,7 @@ class AguaApp extends StatelessWidget {
       child: ListenableBuilder(
         listenable: state,
         builder: (context, _) => MaterialApp(
-          title: 'Cloración Agua',
+          title: 'Gota Poblana',
           debugShowCheckedModeBanner: false,
           theme: _temaClaro,
           darkTheme: _temaOscuro,

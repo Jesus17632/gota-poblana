@@ -394,7 +394,7 @@ class AppState extends ChangeNotifier {
     TipoAviso.fueraNorma: '🔴 Agua fuera de norma',
     TipoAviso.rechazo: '🚫 Orden rechazada',
     TipoAviso.advertencia: '🟡 Aviso del equipo',
-    TipoAviso.info: 'Cloración Agua',
+    TipoAviso.info: 'Gota Poblana',
   };
 
   /// Notificación fuera de la app, solo si la app no está en pantalla.
