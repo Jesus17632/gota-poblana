@@ -2,7 +2,18 @@
 //  main.cpp — Control de pH Adaptativo + Broker MQTT WebSocket + HTTP Server
 //  Hardware: XC01-R5 (ESP32-S3) + XN03 (ADC/RGB) + XN13 (Relé) + XN44 (Buzzer)
 //  Contrato: agua_contrato.h / CONTRATO.md
+//  Nube: Blynk.Cloud (requisito 6 del reto) — pines virtuales V0-V5 y V11
 // ============================================================================
+
+// ======================= BLYNK.CLOUD ==================================
+// 1) Pega aquí las 3 líneas de Blynk: Devices -> tu dispositivo -> Device Info.
+// 2) NO subas este archivo a GitHub con el token pegado (el repo es público).
+// 3) USE_BLYNK 0 = corre sin Blynk (solo app MQTT + pantalla).
+#define USE_BLYNK 1
+#define BLYNK_TEMPLATE_ID   "TMPL27QS6E8yW"
+#define BLYNK_TEMPLATE_NAME "AguaHack"
+#define BLYNK_AUTH_TOKEN    "4xWmjecOS67NI5t4KJNRVcXp8UVcIOkF"
+#define BLYNK_PRINT Serial   // muestra en el Monitor Serie el estado de conexión
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -12,6 +23,10 @@
 #include <PicoMQTT.h>
 #include <PicoWebsocket.h>
 #include "agua_contrato.h"
+
+#if USE_BLYNK
+  #include <BlynkSimpleEsp32.h>
+#endif
 
 
 #include <Adafruit_GFX.h>
@@ -166,6 +181,9 @@ void publicarHardware();
 void entrarError(const String& motivo, bool publicarEv = true);
 void detenerTodo(const String& motivo, const String& cmdOrigen = "");
 void iniciarSesion(Modo m, const String& cmdOrigen = "");
+void aplicarColorLED(uint8_t r, uint8_t g, uint8_t b, bool forzar = false);
+void pulso(float ml, const String& cmdOrigen = "");
+void evaluarDiagnosticoHardware(bool forzarPublicacion = false);
 
 // ======================= 8. DRIVERS I2C DE LOS X-NODE ================
 bool verificarModuloI2C(uint8_t addr) {
@@ -315,7 +333,7 @@ const uint8_t COLOR_PH[15][3] = {
   {0, 0, 170},   {75, 0, 170},  {140, 0, 220}, {120, 0, 180}, {80, 0, 120}
 };
 
-void aplicarColorLED(uint8_t r, uint8_t g, uint8_t b, bool forzar = false) {
+void aplicarColorLED(uint8_t r, uint8_t g, uint8_t b, bool forzar) {
   static uint8_t pr = 255, pg = 255, pb = 255;
   if (!forzar && r == pr && g == pg && b == pb) return;
   pr = r; pg = g; pb = b;
@@ -395,7 +413,7 @@ void entrarError(const String& motivo, bool publicarEv) {
   publicarHardware();
 }
 
-void pulso(float ml, const String& cmdOrigen = "") {
+void pulso(float ml, const String& cmdOrigen) {
   uint32_t ms = msParaVolumen(ml);
   ultimoVol = volumenParaMs(ms);
   phAntes = phFilt;
@@ -479,7 +497,7 @@ bool estable() {
 }
 
 // ======================= 14. DIAGNÓSTICO DE HARDWARE (CONTRATO) ======
-void evaluarDiagnosticoHardware(bool forzarPublicacion = false) {
+void evaluarDiagnosticoHardware(bool forzarPublicacion) {
   busI2cOk  = true;
   modXN03Ok = verificarModuloI2C(I2C_XN03);
   modXN13Ok = verificarModuloI2C(I2C_XN13);
@@ -1090,7 +1108,125 @@ void procesarComandoSerial(String l) {
   }
 }
 
-// ======================= 20. SETUP Y LOOP ============================
+// ======================= 20. BLYNK.CLOUD =============================
+// Datastreams del template AguaHack:
+//   V0  pH                 (ESP -> Blynk)   Double 0-14
+//   V1  Umbral             (Blynk <-> ESP)  Double 4.5-7.0
+//   V2  Dosificar          (Blynk <-> ESP)  Integer 0/1
+//   V3  Estado             (ESP -> Blynk)   String
+//   V4  HOCl %             (ESP -> Blynk)   Double 0-100
+//   V5  Ácido restante mL  (ESP -> Blynk)   Double 0-100
+//   V11 Latido             (ESP -> Blynk)   Integer 0-255 (widget LED)
+// Para no gastar la cuota de mensajes de Blynk, cada dato se envía solo
+// cuando cambia (revisión cada 1 s) y el latido cada 5 s.
+#if USE_BLYNK
+uint32_t tBlynkConexion = 0;   // momento de la última conexión a Blynk
+
+BLYNK_CONNECTED() {
+  tBlynkConexion = millis();
+  msgSerial("Blynk conectado");
+  Blynk.syncVirtual(V1);       // trae el último umbral elegido en el slider
+}
+
+// Slider de umbral (4.5 - 7.0)
+BLYNK_WRITE(V1) {
+  float u = param.asFloat();
+  if (u >= UMBRAL_MIN && u <= UMBRAL_MAX) {
+    st.umbral = u;
+    msgSerial("Umbral desde Blynk: " + String(st.umbral, 2));
+  } else {
+    msgSerial("Umbral de Blynk fuera de rango (4.5-7.0); se ignora");
+    Blynk.virtualWrite(V1, st.umbral);   // regresa el slider al valor válido
+  }
+}
+
+// Switch de dosificar: 1 = iniciar dosificación inteligente, 0 = detener
+BLYNK_WRITE(V2) {
+  if (param.asInt() == 1) {
+    // Seguridad: un "1" que llega justo al reconectar no arranca la bomba
+    if (millis() - tBlynkConexion < 3000) {
+      msgSerial("Blynk: orden de dosificar al reconectar ignorada por seguridad");
+      Blynk.virtualWrite(V2, 0);
+      return;
+    }
+    iniciarSesion(MODO_CONTROL, String(CMD_DOSIFICAR));
+    // Si fue rechazada (pH ya bajo, falla, sin ácido), el switch regresa a 0
+    if (estado == IDLE || estado == ERROR_ST) Blynk.virtualWrite(V2, 0);
+  } else {
+    detenerTodo("Detenido desde Blynk", String(CMD_DETENER));
+  }
+}
+
+// Texto amigable del estado para el widget Label (V3)
+String textoEstadoBlynk() {
+  if (hayFallaCritica || estado == ERROR_ST) {
+    return "ERROR: " + (descFallaCritica.length() ? descFallaCritica : st.error_msg);
+  }
+  switch (estado) {
+    case PULSO:
+    case RAFAGA: return "Dosificando";
+    case AGITA:
+    case MEZCLA: return "Mezclando";
+    default:     return "En espera";
+  }
+}
+
+void enviarBlynk() {
+  static uint32_t tRevision = 0;
+  static uint32_t tLatido   = 0;
+  static bool     latido    = false;
+  static float    phEnv     = -100.0f;
+  static float    umbralEnv = -100.0f;
+  static float    acidoEnv  = -100.0f;
+  static int      v2Env     = -1;
+  static String   v3Env     = "";
+
+  if (!Blynk.connected()) {
+    // Al reconectar se vuelve a mandar todo
+    phEnv = umbralEnv = acidoEnv = -100.0f;
+    v2Env = -1;
+    v3Env = "";
+    return;
+  }
+
+  uint32_t ahora = millis();
+  if (ahora - tRevision < 1000) return;
+  tRevision = ahora;
+
+  if (fabsf(phFilt - phEnv) >= 0.02f) {
+    phEnv = phFilt;
+    Blynk.virtualWrite(V0, roundf(phFilt * 100.0f) / 100.0f);
+    Blynk.virtualWrite(V4, roundf(1000.0f * fraccionHOCl(phFilt)) / 10.0f);
+  }
+  // Si el umbral cambió desde la app o el Serial, se refleja en el slider.
+  // Se espera 2 s tras conectar para no pisar el valor guardado en Blynk.
+  if (ahora - tBlynkConexion > 2000 && fabsf(st.umbral - umbralEnv) >= 0.005f) {
+    umbralEnv = st.umbral;
+    Blynk.virtualWrite(V1, roundf(st.umbral * 100.0f) / 100.0f);
+  }
+  int v2 = (estado == IDLE || estado == ERROR_ST) ? 0 : 1;
+  if (v2 != v2Env) {
+    v2Env = v2;
+    Blynk.virtualWrite(V2, v2);
+  }
+  String v3 = textoEstadoBlynk();
+  if (v3 != v3Env) {
+    v3Env = v3;
+    Blynk.virtualWrite(V3, v3);
+  }
+  if (fabsf(st.acido_restante_ml - acidoEnv) >= 0.1f) {
+    acidoEnv = st.acido_restante_ml;
+    Blynk.virtualWrite(V5, roundf(st.acido_restante_ml * 10.0f) / 10.0f);
+  }
+  if (ahora - tLatido >= 5000) {
+    tLatido = ahora;
+    latido = !latido;
+    Blynk.virtualWrite(V11, latido ? 255 : 0);
+  }
+}
+#endif
+
+// ======================= 21. SETUP Y LOOP ============================
 void setup() {
   Serial.begin(115200);
   delay(800);
@@ -1133,13 +1269,20 @@ void setup() {
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     Serial.print("Conectando a WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
+    uint32_t tInicioWifi = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - tInicioWifi < 20000) {
       delay(500);
       Serial.print(".");
     }
-    ipLocal = WiFi.localIP();
-    Serial.print("\nIP asignada (poner en Flutter): ");
-    Serial.println(ipLocal);
+    if (WiFi.status() == WL_CONNECTED) {
+      ipLocal = WiFi.localIP();
+      Serial.print("\nIP asignada (poner en Flutter): ");
+      Serial.println(ipLocal);
+    } else {
+      // Sin red tras 20 s: el control local (pH, bomba, buzzer, LED, pantalla)
+      // sigue funcionando y el ESP32 reintenta la conexión solo.
+      Serial.println("\n[AVISO] Sin WiFi tras 20 s. Control local activo; reintentando en segundo plano.");
+    }
   }
 
   // Levantar servidor HTTP en puerto 80
@@ -1155,6 +1298,16 @@ void setup() {
     procesarComandoMqtt(String(TEMA_UMBRAL), String(payload));
   });
   mqtt.begin();
+
+#if USE_BLYNK
+  // Blynk solo aplica en modo STA (en modo AP no hay internet)
+  if (!MODO_AP) {
+    Blynk.config(BLYNK_AUTH_TOKEN);
+    if (WiFi.status() == WL_CONNECTED) {
+      Blynk.connect(5000);   // espera máximo 5 s; si no, reintenta en loop()
+    }
+  }
+#endif
 
   Serial.println("Servidor HTTP listo en: http://" + ipLocal.toString() + "/datos");
   Serial.println("Broker MQTT WS listo en: ws://" + ipLocal.toString() + ":" + String(MQTT_WS_PUERTO) + "/");
@@ -1178,6 +1331,15 @@ void loop() {
   // Atender clientes HTTP y Broker MQTT WebSocket
   httpServer.handleClient();
   mqtt.loop();
+
+#if USE_BLYNK
+  // Con la bomba encendida no se atiende Blynk: una reconexión lenta
+  // nunca debe alargar un pulso (el pulso dura máximo 1.5 s).
+  if (!MODO_AP && WiFi.status() == WL_CONNECTED && !st.bomba) {
+    Blynk.run();
+  }
+  enviarBlynk();
+#endif
 
   // 1) Muestreo de pH y LED cada 50 ms
   if (ahora - tMuestreo >= T_MUESTREO_MS) {
@@ -1229,7 +1391,9 @@ void loop() {
     display.println("TODO BIEN");
     display.println("pH: " + String(st.ph, 2));
     display.println("Temp: " + String(st.temp_c, 1) + " C");
-    display.println("IP: " + (MODO_AP ? WiFi.softAPIP().toString() : WiFi.localIP().toString()));
+    if (MODO_AP)                             display.println("IP: " + WiFi.softAPIP().toString());
+    else if (WiFi.status() == WL_CONNECTED)  display.println("IP: " + WiFi.localIP().toString());
+    else                                     display.println("Sin WiFi");
   }
     display.display();
   }
