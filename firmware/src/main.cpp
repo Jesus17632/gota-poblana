@@ -1245,7 +1245,13 @@ void setup() {
   Wire.setPins(PIN_SDA, PIN_SCL);
   Wire.begin();
 
- if (display.begin(0x3C, true)) {
+ // Solo inicializa la pantalla si responde en 0x3C. Sin pantalla conectada,
+ // display.begin() manda decenas de escrituras fallidas y llena el monitor
+ // serie de "i2cWrite(): ... ESP_ERR_INVALID_STATE".
+ Wire.beginTransmission(0x3C);
+ bool hayPantalla = (Wire.endTransmission() == 0);
+ if (!hayPantalla) Serial.println("[I2C] Pantalla SH1106 (0x3C) no detectada; se omite.");
+ if (hayPantalla && display.begin(0x3C, true)) {
   pantallaOk = true;
   display.clearDisplay();
   display.setTextSize(1);
@@ -1254,6 +1260,19 @@ void setup() {
   display.println("Iniciando sistema...");
   display.display();
 }
+
+  // Escaneo del bus I2C: muestra qué módulos responden (diagnóstico rápido)
+  Serial.print("[I2C] Dispositivos encontrados:");
+  uint8_t nI2c = 0;
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf(" 0x%02X", a);
+      nI2c++;
+    }
+  }
+  Serial.println(nI2c ? "" : " ninguno (revisa cables Qwiic y la fuente de 12 V)");
+  Serial.println("[I2C] Esperados: 0x03 XN03, 0x0D XN13, 0x2C XN44, 0x3C pantalla");
 
   // Estado seguro inicial de actuadores
   bomba(false);
