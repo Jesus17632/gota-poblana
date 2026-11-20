@@ -246,13 +246,14 @@ pio run -t upload          # compila y sube al ESP32-S3
 pio device monitor         # 115200 baudios: imprime la IP y el broker
 ```
 
-1. Configura el Wi-Fi en `firmware/src/main.cpp`. Por defecto se conecta al hotspot del equipo.
-2. Conecta el teléfono a la **misma red**.
-3. En la app: Ajustes → Conexión → **ESP32 (MQTT)**, con host = la IP que imprime el equipo, puerto **81** y ruta **/**.
+1. Enciende el ESP32: crea la red **`ESP32S3-Sensor`** (clave `12345678`).
+2. Conecta el teléfono a esa red.
+3. Abre la app: ya apunta a `ws://192.168.4.1:81/` (Ajustes → Conexión para cambiarlo).
 
-> 📶 **Sin red WiFi:** si el ESP32 no encuentra el hotspot en 20 s, abre su propia red
-> **`ESP32S3-Sensor`** (clave `12345678`). Conecta el teléfono a esa red: la app prueba
-> sola `192.168.4.1:81` y se conecta sin tocar nada.
+> 📶 **Por defecto el ESP32 crea su propia red** **`ESP32S3-Sensor`** (clave `12345678`)
+> al encender, sin esperar a ningún router. Conecta el teléfono a esa red y la app entra
+> sola a `ws://192.168.4.1:81/`. Para usar un hotspot con internet (y Blynk), pon
+> `MODO_AP = false` en `main.cpp`.
 
 Para usarlo sin Blynk, pon `#define USE_BLYNK 0`.
 

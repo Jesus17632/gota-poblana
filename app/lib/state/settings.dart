@@ -41,7 +41,7 @@ class Settings {
 
   /// Sube este número cuando cambien los valores por defecto de conexión,
   /// para que se apliquen aunque ya hubiera ajustes guardados.
-  static const _versionConexion = 2;
+  static const _versionConexion = 3; // 3: red propia del ESP32 por defecto
 
   void load(SharedPreferences prefs) {
     if ((prefs.getInt('${_p}versionConexion') ?? 1) < _versionConexion) {

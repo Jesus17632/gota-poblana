@@ -26,9 +26,11 @@ conecta a él en la misma red Wi-Fi.
 
 URL completa: `ws://172.20.10.9:81/`.
 
-**Respaldo sin red:** si el ESP32 no encuentra el WiFi en 20 s, abre su propia
-red `ESP32S3-Sensor` (clave `12345678`) y el broker queda en `ws://192.168.4.1:81/`.
-La app prueba esa IP sola cuando falla la principal. Todo se puede cambiar desde la app en
+**Por defecto (`MODO_AP = true`) el ESP32 crea su propia red al instante:**
+`ESP32S3-Sensor` (clave `12345678`), broker en `ws://192.168.4.1:81/`, que es el
+host por defecto de la app. Con `MODO_AP = false` se conecta al hotspot y, si no
+aparece en 20 s, abre su propia red como respaldo. La app prueba sola
+`192.168.4.1` y `172.20.10.9` si falla la IP configurada. Todo se puede cambiar desde la app en
 Ajustes → Fuente de datos, por si cambia la IP del hotspot.
 
 - Librería sugerida: **PicoMQTT** (broker MQTT para ESP32) con su soporte de WebSocket

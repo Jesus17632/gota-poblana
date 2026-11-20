@@ -11,10 +11,14 @@ class DeviceConst {
   /// Interruptor general de MQTT. En false la app no intenta conectarse.
   static const bool mqttHabilitado = true;
 
-  /// El ESP32 levanta el broker MQTT sobre WebSocket en la misma red.
-  /// (El puerto 80 queda para el servidor HTTP del ESP32.)
-  /// Se pueden cambiar desde la app: Ajustes → Fuente de datos.
-  static const String mqttHostPorDefecto = '172.20.10.9';
+  /// El ESP32 crea su propia red (ESP32S3-Sensor) y su broker MQTT sobre
+  /// WebSocket queda en 192.168.4.1. (El puerto 80 es su servidor HTTP.)
+  /// Se pueden cambiar desde la app: Ajustes → Conexión.
+  static const String mqttHostPorDefecto = '192.168.4.1';
+
+  /// IPs que la app prueba sola si falla la configurada: la red propia del
+  /// ESP32 y el hotspot del equipo (modo STA).
+  static const List<String> mqttHostsConocidos = ['192.168.4.1', '172.20.10.9'];
   static const int mqttPuertoPorDefecto = 81;
   static const String mqttRutaPorDefecto = '/';
 

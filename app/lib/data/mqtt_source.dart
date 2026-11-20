@@ -57,8 +57,9 @@ class MqttSource implements DataSource {
   /// Si uno falla, el siguiente reintento prueba el otro.
   late final List<String> _hosts = [
     host,
-    if (!host.contains('://') && host != DeviceConst.mqttHostRespaldo)
-      DeviceConst.mqttHostRespaldo,
+    if (!host.contains('://'))
+      for (final h in DeviceConst.mqttHostsConocidos)
+        if (h != host) h,
   ];
   int _iHost = 0;
   String get _hostActual => _hosts[_iHost];
@@ -77,7 +78,7 @@ class MqttSource implements DataSource {
     return 'ws://$h$r';
   }
 
-  bool get enRespaldo => _hostActual == DeviceConst.mqttHostRespaldo && host != _hostActual;
+  bool get enRespaldo => _hostActual != host;
 
   @override
   Stream<Telemetria> get telemetria => _tele.stream;
@@ -91,7 +92,7 @@ class MqttSource implements DataSource {
   String? get errorConexion => _error;
   @override
   String get descripcion =>
-      'MQTT $url (puerto $port)${enRespaldo ? ' · red propia del ESP32' : ''}';
+      'MQTT $url (puerto $port)${enRespaldo ? ' · IP alterna' : ''}';
   @override
   bool get simulado => false;
 
@@ -138,8 +139,7 @@ class MqttSource implements DataSource {
       await client.connect();
     } catch (e) {
       _error = 'No se pudo conectar a $url:$port. '
-          '${_hosts.length > 1 ? 'Probando también la red propia del ESP32 '
-              '(${DeviceConst.mqttHostRespaldo}). ' : ''}'
+          '${_hosts.length > 1 ? 'Probando también ${_hosts.where((h) => h != _hostActual).join(', ')}. ' : ''}'
           'Reintentando cada ${DeviceConst.mqttReintento.inSeconds} s…';
       client.disconnect();
       _client = null;

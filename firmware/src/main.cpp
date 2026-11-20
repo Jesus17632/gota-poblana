@@ -38,10 +38,11 @@ Adafruit_SH1106G display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 bool pantallaOk = false;
 
 // ======================= 0. CONFIGURACIÓN DE RED =====================
-// false = se conecta a tu hotspot/router (STA) | true = crea su propia red (AP)
-// Si MODO_AP = false y la red no aparece en 20 s, el ESP32 abre su PROPIA red
-// (AP_SSID) como respaldo: la app se conecta a ws://192.168.4.1:81/
-const bool MODO_AP = false;
+// true  = (POR DEFECTO) el ESP32 crea su propia red al instante: AP_SSID,
+//         broker en ws://192.168.4.1:81/. Sin internet (Blynk no aplica).
+// false = se conecta al hotspot WIFI_SSID; si no aparece en 20 s, abre su
+//         propia red como respaldo.
+const bool MODO_AP = true;
 bool apActivo = MODO_AP;   // true cuando el ESP32 está sirviendo su propia red
 
 const char* WIFI_SSID = "iPhone de Jesus";
