@@ -250,6 +250,10 @@ pio device monitor         # 115200 baudios: imprime la IP y el broker
 2. Conecta el teléfono a la **misma red**.
 3. En la app: Ajustes → Conexión → **ESP32 (MQTT)**, con host = la IP que imprime el equipo, puerto **81** y ruta **/**.
 
+> 📶 **Sin red WiFi:** si el ESP32 no encuentra el hotspot en 20 s, abre su propia red
+> **`ESP32S3-Sensor`** (clave `12345678`). Conecta el teléfono a esa red: la app prueba
+> sola `192.168.4.1:81` y se conecta sin tocar nada.
+
 Para usarlo sin Blynk, pon `#define USE_BLYNK 0`.
 
 ---

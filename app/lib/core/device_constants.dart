@@ -18,6 +18,10 @@ class DeviceConst {
   static const int mqttPuertoPorDefecto = 81;
   static const String mqttRutaPorDefecto = '/';
 
+  /// Si el ESP32 no encuentra el WiFi, abre su propia red (ESP32S3-Sensor)
+  /// y queda en esta IP. La app la prueba sola cuando falla la principal.
+  static const String mqttHostRespaldo = '192.168.4.1';
+
   /// Reintento de conexión si el ESP32 no está disponible.
   static const Duration mqttReintento = Duration(seconds: 5);
   static const String nodoPorDefecto = 'nodo1';

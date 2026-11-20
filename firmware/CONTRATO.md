@@ -24,7 +24,11 @@ conecta a él en la misma red Wi-Fi.
 | Ruta | `/` | `MQTT_WS_RUTA` |
 | Nodo | `nodo1` | `AGUA_NODO` |
 
-URL completa: `ws://172.20.10.9:81/`. Todo se puede cambiar desde la app en
+URL completa: `ws://172.20.10.9:81/`.
+
+**Respaldo sin red:** si el ESP32 no encuentra el WiFi en 20 s, abre su propia
+red `ESP32S3-Sensor` (clave `12345678`) y el broker queda en `ws://192.168.4.1:81/`.
+La app prueba esa IP sola cuando falla la principal. Todo se puede cambiar desde la app en
 Ajustes → Fuente de datos, por si cambia la IP del hotspot.
 
 - Librería sugerida: **PicoMQTT** (broker MQTT para ESP32) con su soporte de WebSocket

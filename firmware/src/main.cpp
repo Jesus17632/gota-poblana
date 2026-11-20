@@ -39,7 +39,10 @@ bool pantallaOk = false;
 
 // ======================= 0. CONFIGURACIÓN DE RED =====================
 // false = se conecta a tu hotspot/router (STA) | true = crea su propia red (AP)
+// Si MODO_AP = false y la red no aparece en 20 s, el ESP32 abre su PROPIA red
+// (AP_SSID) como respaldo: la app se conecta a ws://192.168.4.1:81/
 const bool MODO_AP = false;
+bool apActivo = MODO_AP;   // true cuando el ESP32 está sirviendo su propia red
 
 const char* WIFI_SSID = "iPhone de Jesus";
 const char* WIFI_PASS = "12345678";
@@ -692,7 +695,7 @@ void publicarHardware() {
   if (!calibrado) {
     agregarFalla(fallas, FALLA_CALIBRACION_PENDIENTE, SEV_ADVERTENCIA, MOD_PH, "Sonda sin calibración de 1 punto");
   }
-  if (!MODO_AP && WiFi.status() == WL_CONNECTED && WiFi.RSSI() < -80) {
+  if (!apActivo && WiFi.status() == WL_CONNECTED && WiFi.RSSI() < -80) {
     agregarFalla(fallas, FALLA_WIFI_DEBIL, SEV_ADVERTENCIA, MOD_XC01, "RSSI " + String(WiFi.RSSI()) + " dBm");
   }
 
@@ -1268,6 +1271,7 @@ void setup() {
   // Conexión Wi-Fi (STA o AP)
   IPAddress ipLocal;
   if (MODO_AP) {
+    WiFi.mode(WIFI_AP);
     WiFi.softAP(AP_SSID, AP_PASS);
     ipLocal = WiFi.softAPIP();
     Serial.print("IP del AP: ");
@@ -1286,9 +1290,21 @@ void setup() {
       Serial.print("\nIP asignada (poner en Flutter): ");
       Serial.println(ipLocal);
     } else {
-      // Sin red tras 20 s: el control local (pH, bomba, buzzer, LED, pantalla)
-      // sigue funcionando y el ESP32 reintenta la conexión solo.
-      Serial.println("\n[AVISO] Sin WiFi tras 20 s. Control local activo; reintentando en segundo plano.");
+      // Sin red tras 20 s: RESPALDO. El ESP32 abre su propia red WiFi con el
+      // broker WebSocket, para que la app se conecte sin router ni internet.
+      // (Se queda así hasta reiniciar: cambiar de red con clientes conectados
+      //  los desconectaría a mitad de una sesión.)
+      WiFi.disconnect(true);
+      delay(100);
+      WiFi.mode(WIFI_AP);
+      WiFi.softAP(AP_SSID, AP_PASS);
+      apActivo = true;
+      ipLocal  = WiFi.softAPIP();
+      Serial.println("\n[AVISO] Sin WiFi tras 20 s. Red propia activada.");
+      Serial.println("  Conecta el teléfono a la red \"" + String(AP_SSID) + "\" (clave " +
+                     String(AP_PASS) + ")");
+      Serial.println("  App: host " + ipLocal.toString() + ", puerto " + String(MQTT_WS_PUERTO) +
+                     ", ruta /");
     }
   }
 
@@ -1308,7 +1324,7 @@ void setup() {
 
 #if USE_BLYNK
   // Blynk solo aplica en modo STA (en modo AP no hay internet)
-  if (!MODO_AP) {
+  if (!apActivo) {
     Blynk.config(BLYNK_AUTH_TOKEN);
     if (WiFi.status() == WL_CONNECTED) {
       Blynk.connect(5000);   // espera máximo 5 s; si no, reintenta en loop()
@@ -1342,7 +1358,7 @@ void loop() {
 #if USE_BLYNK
   // Con la bomba encendida no se atiende Blynk: una reconexión lenta
   // nunca debe alargar un pulso (el pulso dura máximo 1.5 s).
-  if (!MODO_AP && WiFi.status() == WL_CONNECTED && !st.bomba) {
+  if (!apActivo && WiFi.status() == WL_CONNECTED && !st.bomba) {
     Blynk.run();
   }
   enviarBlynk();
@@ -1398,7 +1414,10 @@ void loop() {
     display.println("TODO BIEN");
     display.println("pH: " + String(st.ph, 2));
     display.println("Temp: " + String(st.temp_c, 1) + " C");
-    if (MODO_AP)                             display.println("IP: " + WiFi.softAPIP().toString());
+    if (apActivo) {
+      display.println("Red: " + String(AP_SSID));
+      display.println("IP: " + WiFi.softAPIP().toString());
+    }
     else if (WiFi.status() == WL_CONNECTED)  display.println("IP: " + WiFi.localIP().toString());
     else                                     display.println("Sin WiFi");
   }

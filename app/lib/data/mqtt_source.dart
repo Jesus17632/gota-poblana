@@ -52,6 +52,16 @@ class MqttSource implements DataSource {
   final _hw = StreamController<HardwareEstado>.broadcast();
   final _con = StreamController<ConexionEstado>.broadcast();
   MqttClient? _client;
+
+  /// Host configurado y, de respaldo, la red propia del ESP32 (192.168.4.1).
+  /// Si uno falla, el siguiente reintento prueba el otro.
+  late final List<String> _hosts = [
+    host,
+    if (!host.contains('://') && host != DeviceConst.mqttHostRespaldo)
+      DeviceConst.mqttHostRespaldo,
+  ];
+  int _iHost = 0;
+  String get _hostActual => _hosts[_iHost];
   StreamSubscription? _sub;
   String? _error;
   Timer? _reintento;
@@ -61,10 +71,13 @@ class MqttSource implements DataSource {
   final Map<String, dynamic> _merged = {};
 
   String get url {
-    if (host.contains('://')) return host;
+    final h = _hostActual;
+    if (h.contains('://')) return h;
     final r = ruta.isEmpty ? '' : (ruta.startsWith('/') ? ruta : '/$ruta');
-    return 'ws://$host$r';
+    return 'ws://$h$r';
   }
+
+  bool get enRespaldo => _hostActual == DeviceConst.mqttHostRespaldo && host != _hostActual;
 
   @override
   Stream<Telemetria> get telemetria => _tele.stream;
@@ -77,7 +90,8 @@ class MqttSource implements DataSource {
   @override
   String? get errorConexion => _error;
   @override
-  String get descripcion => 'MQTT $url (puerto $port)';
+  String get descripcion =>
+      'MQTT $url (puerto $port)${enRespaldo ? ' · red propia del ESP32' : ''}';
   @override
   bool get simulado => false;
 
@@ -91,6 +105,7 @@ class MqttSource implements DataSource {
   void _programarReintento() {
     _reintento?.cancel();
     if (!_activo) return;
+    _iHost = (_iHost + 1) % _hosts.length; // alterna principal ↔ respaldo
     _reintento = Timer(DeviceConst.mqttReintento, () {
       if (_activo) _conectar();
     });
@@ -122,7 +137,9 @@ class MqttSource implements DataSource {
     try {
       await client.connect();
     } catch (e) {
-      _error = 'No se pudo conectar a $url:$port ($e). '
+      _error = 'No se pudo conectar a $url:$port. '
+          '${_hosts.length > 1 ? 'Probando también la red propia del ESP32 '
+              '(${DeviceConst.mqttHostRespaldo}). ' : ''}'
           'Reintentando cada ${DeviceConst.mqttReintento.inSeconds} s…';
       client.disconnect();
       _client = null;
