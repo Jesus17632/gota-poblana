@@ -114,7 +114,7 @@ la introducción (menos de 50 s, con *Omitir*) y se cambian en Ajustes.
 </tr>
 </table>
 
-| 👤 Ciudadano (solo lectura) | 🛠️ Técnico |
+| Ciudadano (solo lectura) | 🛠️ Técnico |
 |---|---|
 | Pecera con el pH en vivo y su color | Todo lo del ciudadano |
 | "Dentro del rango de la norma" / "Fuera de rango" | Objetivo por **pH** o por **% de cloro activo** |
@@ -126,11 +126,11 @@ la introducción (menos de 50 s, con *Omitir*) y se cambian en Ajustes.
 
 **Detalles que importan**
 
-- 🚨 **Si el equipo reporta una falla**, la pecera se pone roja y dice *"Hacer test de errores"*. Al tocarla, la app revisa conexión, lecturas, sonda, relé, buzzer, LED, ácido y calibración, línea por línea.
-- 🔔 **Notificaciones del sistema** con la app en segundo plano (Android y Linux): inicio, fin, fallas, fuera de norma y pérdida de conexión, con sonido de dos tonos ascendentes, tres descendentes o tres graves.
-- 🌗 **Modo claro, oscuro o del sistema**, diseño para teléfono vertical, horizontal, tablet y escritorio, y respeto al *movimiento reducido*.
-- 🕸️ **Vista de red (Nodos)**: el nodo real en vivo y, por ahora, cuatro nodos de demostración.
-- 🧪 **Simulador integrado** que imita al firmware regla por regla: se puede hacer la demo completa sin hardware.
+- **Si el equipo reporta una falla**, la pecera se pone roja y dice *"Hacer test de errores"*. Al tocarla, la app revisa conexión, lecturas, sonda, relé, buzzer, LED, ácido y calibración, línea por línea.
+- **Notificaciones del sistema** con la app en segundo plano (Android y Linux): inicio, fin, fallas, fuera de norma y pérdida de conexión, con sonido de dos tonos ascendentes, tres descendentes o tres graves.
+- **Modo claro, oscuro o del sistema**, diseño para teléfono vertical, horizontal, tablet y escritorio, y respeto al *movimiento reducido*.
+- **Vista de red (Nodos)**: el nodo real en vivo y, por ahora, cuatro nodos de demostración.
+- **Simulador integrado** que imita al firmware regla por regla: se puede hacer la demo completa sin hardware.
 
 <p align="center">
 <img src="docs/img/app_nodos_oscuro.jpg" width="220" alt="Nodos (oscuro)"/>
@@ -348,10 +348,10 @@ cd app && flutter test
 
 | | |
 |---|---|
-| ✅ **Real** | Sonda, filtrado, control, bomba, buzzer, LED, MQTT y Blynk |
-| 🧮 **Calculado** | % de HOCl, a partir del pH real y la temperatura |
-| 🌡️ **Supuesto** | Temperatura: 22 °C capturada, no medida (sin sensor) |
-| 🎭 **Demostración** | Los otros nodos de la vista de red |
+| **Real** | Sonda, filtrado, control, bomba, buzzer, LED, MQTT y Blynk |
+| **Calculado** | % de HOCl, a partir del pH real y la temperatura |
+| **Supuesto** | Temperatura: 22 °C capturada, no medida (sin sensor) |
+| **Demostración** | Los otros nodos de la vista de red |
 
 ---
 
